@@ -220,7 +220,6 @@ int macsec_xform_reg_dump(struct cmd_context *ctx)
 	macsec_read_reg(ctx, (u16)0x1E5F, INGR, &value);
 	rec_size = (value & 0x03000000) >> 24;
 	reg_num =(rec_size == 1) ? 20 : ((rec_size == 2) ? 24 : 16);
-	printf("Raju:%d:%s: Ingr rec_size:%d, reg_num:%d\n", __LINE__, __func__, rec_size, reg_num);
 	for (idx = 0; idx < no_entries; idx++) {
 		printf("Ingress XFORM Record -%u\n", (u32)(idx + 1));
 		base_addr = (0x20 * idx);
@@ -238,7 +237,6 @@ int macsec_xform_reg_dump(struct cmd_context *ctx)
 	macsec_read_reg(ctx, (u16)0x9E5F, EGR, &value);
 	rec_size = (value & 0x03000000) >> 24;
 	reg_num =(rec_size == 1) ? 20 : ((rec_size == 2) ? 24 : 16);
-	printf("Raju:%d:%s: Egr rec_size:%d, reg_num:%d\n", __LINE__, __func__, rec_size, reg_num);
 	for (idx = 0; idx < no_entries; idx++) {
 		printf("Egress XFORM Record -%u\n", (u32)(idx + 1));
 		base_addr = 0x8000 + (0x20 * idx);
