@@ -4720,6 +4720,112 @@ static int do_seee(struct cmd_context *ctx)
 	return 0;
 }
 
+static int do_phy_macsec_read(struct cmd_context *ctx)
+{
+	int read_changed = 0;
+	u16 addr = 0, bank = 0;
+    char *bank_str = NULL;
+	struct cmdline_info cmdline_read[] = {
+		{ "addr", CMDL_U16, &addr, NULL },
+		{ "bank", CMDL_STR, &bank_str, NULL },
+	};
+	int err;
+	struct ethtool_tunable tuna;
+	u32 value;
+
+	parse_generic_cmdline(ctx, &read_changed,
+			      cmdline_read, ARRAY_SIZE(cmdline_read));
+
+	if (!strcmp(ctx->argp[2], "bank")) {
+		if (!strcmp(bank_str, "fc"))
+			bank = 0x4;
+		else if (!strcmp(bank_str, "hmac"))
+			bank = 0x5;
+		else if (!strcmp(bank_str, "lmac"))
+			bank = 0x6;
+		else if (!strcmp(bank_str, "ptp"))
+			bank = 0xe;
+		else if (!strcmp(bank_str, "macsec-ingr"))
+			bank = 0x38;
+		else if (!strcmp(bank_str, "macsec-egr"))
+			bank = 0x3c;
+		else
+			exit_bad_args();
+	}
+
+	tuna.cmd = ETHTOOL_PHY_GTUNABLE;
+	tuna.id = ETHTOOL_PHY_MACSEC_RD_REG;
+	tuna.type_id = ETHTOOL_TUNABLE_U32;
+	tuna.len = sizeof(value);
+	tuna.data[0] = &value;
+	value = (u32)bank << 16 | addr;
+	memcpy(&tuna.data[0], &value, sizeof(value));
+	err = send_ioctl(ctx, &tuna);
+	if (err < 0) {
+		perror("Cannot read PHY MACsec register address");
+		return 87;
+	}
+
+	memcpy(&value, &tuna.data[0], sizeof(value));
+	fprintf(stdout, "PHY MACsec bank:0x%x, reg:0x%x(%d) val:0x%x(%d)\n",
+		bank, addr, addr, value, value);
+
+	return err;
+}
+
+static int do_phy_macsec_write(struct cmd_context *ctx)
+{
+	int read_changed = 0;
+	u16 addr = 0, bank = 0;
+	u32 value;
+	u32 data[2];
+    char *bank_str = NULL;
+	struct cmdline_info cmdline_read[] = {
+		{ "addr", CMDL_U16, &addr, NULL },
+		{ "bank", CMDL_STR, &bank_str, NULL },
+		{ "val", CMDL_U32, &value, NULL },
+	};
+	int err;
+	struct ethtool_tunable tuna;
+
+	parse_generic_cmdline(ctx, &read_changed,
+			      cmdline_read, ARRAY_SIZE(cmdline_read));
+	if (!strcmp(ctx->argp[2], "bank")) {
+		if (!strcmp(bank_str, "fc"))
+			bank = 0x4;
+		else if (!strcmp(bank_str, "hmac"))
+			bank = 0x5;
+		else if (!strcmp(bank_str, "lmac"))
+			bank = 0x6;
+		else if (!strcmp(bank_str, "ptp"))
+			bank = 0xe;
+		else if (!strcmp(bank_str, "macsec-ingr"))
+			bank = 0x38;
+		else if (!strcmp(bank_str, "macsec-egr"))
+			bank = 0x3c;
+		else
+			exit_bad_args();
+	}
+
+	tuna.cmd = ETHTOOL_PHY_STUNABLE;
+	tuna.id = ETHTOOL_PHY_MACSEC_WR_REG;
+	tuna.type_id = ETHTOOL_TUNABLE_U32;
+	tuna.len = sizeof(data);
+	tuna.data[0] = &data[0];
+	data[0] = (u32)bank << 16 | addr;
+	data[1] = value;
+	err = send_ioctl(ctx, &tuna);
+	if (err < 0) {
+		perror("Cannot write PHY MACsec register address");
+		return 87;
+	}
+
+	fprintf(stdout, "MACsec written bank:0x%x reg:0x%x(%d) val:0x%x(%d)\n",
+		bank, addr, addr, value, value);
+
+	return err;
+}
+
 static int do_phy_read(struct cmd_context *ctx)
 {
 	int read_changed = 0;
@@ -5274,6 +5380,15 @@ static const struct option {
 	  "Write PHY register address",
 	  "             [ addr N ]\n"
 	  "             [ page N ]\n"
+	  "             [ val N ]\n" },
+	{ "--macsec-read-reg", 1, do_phy_macsec_read,
+	  "Read PHY MACsec register address",
+	  "             [ addr N ]\n"
+	  "             [ bank fc|hmac|lmac|ptp|macsec-ingr|macsec-egr ]\n" },
+	{ "--macsec-write-reg", 1, do_phy_macsec_write,
+	  "Write PHY MACsec register address",
+	  "             [ addr N ]\n"
+	  "             [ bank N ]\n"
 	  "             [ val N ]\n" },
 	{ "--set-phy-tunable", 1, do_set_phy_tunable, "Set PHY tunable",
 	  "		[ downshift on|off [count N] ]\n"},
