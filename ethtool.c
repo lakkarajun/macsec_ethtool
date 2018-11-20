@@ -4720,6 +4720,47 @@ static int do_seee(struct cmd_context *ctx)
 	return 0;
 }
 
+int macsec_read_reg(struct cmd_context *ctx,
+					u16 addr,
+					u16 bank,
+					u32 *value)
+{
+	int err;
+	struct ethtool_tunable tuna;
+	u32 val;
+
+	tuna.cmd = ETHTOOL_PHY_GTUNABLE;
+	tuna.id = ETHTOOL_PHY_MACSEC_RD_REG;
+	tuna.type_id = ETHTOOL_TUNABLE_U32;
+	tuna.len = sizeof(value);
+	tuna.data[0] = value;
+	val = (u32)bank << 16 | addr;
+	memcpy(&tuna.data[0], &val, sizeof(val));
+	err = send_ioctl(ctx, &tuna);
+	if (err < 0) {
+		perror("Cannot read PHY MACsec register address");
+		return -1;
+	}
+
+	memcpy(value, &tuna.data[0], sizeof(u32));
+
+	return err;
+}
+
+static int do_macsec_reg_dump(struct cmd_context *ctx)
+{
+	macsec_ctrl_reg_dump(ctx);
+	macsec_sa_ctrl_reg_dump(ctx);
+	macsec_sa_flow_ctrl_reg_dump(ctx);
+	macsec_ctrl_pkt_class_reg_dump(ctx);
+	macsec_ctrl_pkt_class2_reg_dump(ctx);
+	macsec_ctrl_frame_reg_dump(ctx);
+	macsec_sa_reg_dump(ctx);
+	macsec_xform_reg_dump(ctx);
+
+	return 0;
+}
+
 static int do_phy_macsec_read(struct cmd_context *ctx)
 {
 	int read_changed = 0;
@@ -5390,6 +5431,8 @@ static const struct option {
 	  "             [ addr N ]\n"
 	  "             [ bank N ]\n"
 	  "             [ val N ]\n" },
+	{ "--macsec-reg-dump", 1, do_macsec_reg_dump,
+	  "MACsec registers dump" },
 	{ "--set-phy-tunable", 1, do_set_phy_tunable, "Set PHY tunable",
 	  "		[ downshift on|off [count N] ]\n"},
 	{ "--get-phy-tunable", 1, do_get_phy_tunable, "Get PHY tunable",

@@ -353,4 +353,16 @@ void sff8636_show_all(const __u8 *id, __u32 eeprom_len);
 
 /* FUJITSU Extended Socket network device */
 int fjes_dump_regs(struct ethtool_drvinfo *info, struct ethtool_regs *regs);
+
+/* Microchip MACsec functions */
+int macsec_read_reg(struct cmd_context *ctx, u16 addr, u16 bank, u32 *const value);
+int macsec_ctrl_reg_dump(struct cmd_context *ctx);
+int macsec_sa_ctrl_reg_dump(struct cmd_context *ctx);
+int macsec_sa_flow_ctrl_reg_dump(struct cmd_context *ctx);
+int macsec_ctrl_pkt_class_reg_dump(struct cmd_context *ctx);
+int macsec_ctrl_pkt_class2_reg_dump(struct cmd_context *ctx);
+int macsec_ctrl_frame_reg_dump(struct cmd_context *ctx);
+int macsec_sa_reg_dump(struct cmd_context *ctx);
+int macsec_xform_reg_dump(struct cmd_context *ctx);
+
 #endif /* ETHTOOL_INTERNAL_H__ */
