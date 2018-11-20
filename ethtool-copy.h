@@ -252,6 +252,8 @@ struct ethtool_tunable {
 
 enum phy_tunable_id {
 	ETHTOOL_PHY_ID_UNSPEC,
+	ETHTOOL_PHY_READ_REG,
+	ETHTOOL_PHY_WRITE_REG,
 	ETHTOOL_PHY_DOWNSHIFT,
 	/*
 	 * Add your fresh new phy tunable attribute above and remember to update

@@ -330,6 +330,9 @@ int altera_tse_dump_regs(struct ethtool_drvinfo *info,
 /* VMware vmxnet3 ethernet controller */
 int vmxnet3_dump_regs(struct ethtool_drvinfo *info, struct ethtool_regs *regs);
 
+/* Microchip ethernet switch */
+int ocelot_dump_regs(struct ethtool_drvinfo *info, struct ethtool_regs *regs);
+
 /* Rx flow classification */
 int rxclass_parse_ruleopts(struct cmd_context *ctx,
 			   struct ethtool_rx_flow_spec *fsp, __u32 *rss_context);

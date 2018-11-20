@@ -1160,6 +1160,7 @@ static const struct {
 	{ "altera_tse", altera_tse_dump_regs },
 	{ "vmxnet3", vmxnet3_dump_regs },
 	{ "fjes", fjes_dump_regs },
+	{ "ocelot", ocelot_dump_regs },
 #endif
 };
 
@@ -1188,7 +1189,7 @@ static int dump_regs(int gregs_dump_raw, int gregs_dump_hex,
 	}
 
 	if (!gregs_dump_hex)
-		for (i = 0; i < ARRAY_SIZE(driver_list); i++)
+		for (i = 0; i < ARRAY_SIZE(driver_list); i++) {
 			if (!strncmp(driver_list[i].name, info->driver,
 				     ETHTOOL_BUSINFO_LEN)) {
 				if (driver_list[i].func(info, regs) == 0)
@@ -1199,6 +1200,7 @@ static int dump_regs(int gregs_dump_raw, int gregs_dump_hex,
 				 */
 				break;
 			}
+		}
 
 	dump_hex(stdout, regs->data, regs->len, 0);
 
@@ -4718,6 +4720,77 @@ static int do_seee(struct cmd_context *ctx)
 	return 0;
 }
 
+static int do_phy_read(struct cmd_context *ctx)
+{
+	int read_changed = 0;
+	u8 addr = 0, page = 0;
+	struct cmdline_info cmdline_read[] = {
+		{ "addr", CMDL_U8, &addr, NULL },
+		{ "page", CMDL_U8, &page, NULL },
+	};
+	int err;
+	struct ethtool_tunable tuna;
+	u16 value;
+
+	parse_generic_cmdline(ctx, &read_changed,
+			      cmdline_read, ARRAY_SIZE(cmdline_read));
+
+	tuna.cmd = ETHTOOL_PHY_GTUNABLE;
+	tuna.id = ETHTOOL_PHY_READ_REG;
+	tuna.type_id = ETHTOOL_TUNABLE_U16;
+	tuna.len = sizeof(value);
+	tuna.data[0] = &value;
+	value = (u16)page << 8 | addr;
+	memcpy(&tuna.data[0], &value, sizeof(value));
+	err = send_ioctl(ctx, &tuna);
+	if (err < 0) {
+		perror("Cannot read PHY register address");
+		return 87;
+	}
+
+	memcpy(&value, &tuna.data[0], sizeof(value));
+	fprintf(stdout, "PHY Page:%d Reg:0x%x(%d) val:0x%x(%d)\n",
+		page, addr, addr, value, value);
+
+	return err;
+}
+
+static int do_phy_write(struct cmd_context *ctx)
+{
+	int read_changed = 0;
+	u8 addr = 0, page = 0;
+	u16 value;
+	u32 data;
+	struct cmdline_info cmdline_read[] = {
+		{ "addr", CMDL_U8, &addr, NULL },
+		{ "page", CMDL_U8, &page, NULL },
+		{ "val", CMDL_U16, &value, NULL },
+	};
+	int err;
+	struct ethtool_tunable tuna;
+
+	parse_generic_cmdline(ctx, &read_changed,
+			      cmdline_read, ARRAY_SIZE(cmdline_read));
+
+	tuna.cmd = ETHTOOL_PHY_STUNABLE;
+	tuna.id = ETHTOOL_PHY_WRITE_REG;
+	tuna.type_id = ETHTOOL_TUNABLE_U32;
+	tuna.len = sizeof(data);
+	tuna.data[0] = &data;
+	data = (u32)value << 16 | (u32)page << 8 | addr;
+	memcpy(&tuna.data[0], &data, sizeof(data));
+	err = send_ioctl(ctx, &tuna);
+	if (err < 0) {
+		perror("Cannot write PHY register address");
+		return 87;
+	}
+
+	fprintf(stdout, "Written Page:%d Reg:0x%x(%d) val:0x%x(%d)\n",
+		page, addr, addr, value, value);
+
+	return err;
+}
+
 static int do_get_phy_tunable(struct cmd_context *ctx)
 {
 	int argc = ctx->argc;
@@ -5193,6 +5266,15 @@ static const struct option {
 	  "		[ advertise %x ]\n"
 	  "		[ tx-lpi on|off ]\n"
 	  "		[ tx-timer %d ]\n"},
+	{ "-R|--read-reg", 1, do_phy_read,
+	  "Read PHY register address",
+	  "             [ addr N ]\n"
+	  "             [ page N ]\n" },
+	{ "--write-reg", 1, do_phy_write,
+	  "Write PHY register address",
+	  "             [ addr N ]\n"
+	  "             [ page N ]\n"
+	  "             [ val N ]\n" },
 	{ "--set-phy-tunable", 1, do_set_phy_tunable, "Set PHY tunable",
 	  "		[ downshift on|off [count N] ]\n"},
 	{ "--get-phy-tunable", 1, do_get_phy_tunable, "Get PHY tunable",
