@@ -4,10 +4,16 @@
 
 #define INGR 0x38
 #define EGR  0x3c
+#define HOST 0x5
+#define LINE 0x6
 
 #define MACSEC_DISP_REG(ctx, d, a, b, v) \
 	macsec_read_reg(ctx, a, b, v);       \
 	printf("%-10s %-40s 0x%-10x 0x%-12x\n", ctx->devname, d, a, *v)
+
+#define MACSEC_DISP_CNT(ctx, d, a, b, v) \
+	macsec_read_reg(ctx, a, b, v);       \
+	printf("%-40s %-12d\n", d, *v)
 
 int macsec_ctrl_reg_dump(struct cmd_context *ctx)
 {
@@ -249,6 +255,280 @@ int macsec_xform_reg_dump(struct cmd_context *ctx)
 			printf("[ \t0x%-6x - 0x%-6x ] 0x%-12x  0x%-12x  0x%-12x  0x%-12x \n", addr, addr+3, value, value1, value2, value3);
 		}
 	}
+
+	return 0;
+}
+
+int macsec_rmon_hmac_reg_dump(struct cmd_context *ctx)
+{
+	u32 value;
+	u64 count64 = 0;
+	u64 stats_pkts = 0;
+
+	printf("\nMACSEC HOST MAC statistics\n\n");
+
+	macsec_read_reg(ctx, (u16)(0x13b), HOST, &value);
+	count64 = (u64)value;
+	macsec_read_reg(ctx, (u16)(0x13c), HOST, &value);
+	count64 += (u64)value;
+	macsec_read_reg(ctx, (u16)(0x139), HOST, &value);
+	count64 += (u64)value;
+	macsec_read_reg(ctx, (u16)(0x13a), HOST, &value);
+	count64 += (u64)value;
+	printf("%-40s %-12lld\n", "if_rx_octets", count64);
+	macsec_read_reg(ctx, (u16)(0x13d), HOST, &value);
+	count64 = (u64)value;
+	macsec_read_reg(ctx, (u16)(0x13e), HOST, &value);
+	count64 += (u64)value;
+	printf("%-40s %-12lld\n", "if_rx_in_bytes", count64);
+	MACSEC_DISP_CNT(ctx, "if_rx_pause_pkts", (u16)(0x11a), HOST, &value);
+	MACSEC_DISP_CNT(ctx, "if_rx_ucast_pkts", (u16)(0x11c), HOST, &value);
+	MACSEC_DISP_CNT(ctx, "if_rx_multicast_pkts", (u16)(0x11d), HOST, &value);
+	MACSEC_DISP_CNT(ctx, "if_rx_broadcast_pkts", (u16)(0x11e), HOST, &value);
+	macsec_read_reg(ctx, (u16)(0x13b), HOST, &value);
+	count64 = (u64)value;
+	macsec_read_reg(ctx, (u16)(0x139), HOST, &value);
+	count64 += (u64)value;
+	printf("%-40s %-12lld\n", "if_rx_in_bytes", count64);
+	MACSEC_DISP_CNT(ctx, "if_rx_CRCAlignErrors", (u16)(0x11f), HOST, &value);
+	count64 = (u64)value;
+	MACSEC_DISP_CNT(ctx, "if_rx_UndersizePkts", (u16)(0x120), HOST, &value);
+	count64 += (u64)value;
+	stats_pkts = (u64)value;
+	MACSEC_DISP_CNT(ctx, "if_rx_Fragments", (u16)(0x121), HOST, &value);
+	count64 += (u64)value;
+	stats_pkts += (u64)value;
+	MACSEC_DISP_CNT(ctx, "if_rx_Jabbers", (u16)(0x125), HOST, &value);
+	count64 += (u64)value;
+	stats_pkts += (u64)value;
+	printf("%-40s %-12lld\n", "if_rx_errors", count64);
+	MACSEC_DISP_CNT(ctx, "if_rx_OversizePkts", (u16)(0x124), HOST, &value);
+	stats_pkts += (u64)value;
+	MACSEC_DISP_CNT(ctx, "if_rx_Pkts64Octets", (u16)(0x126), HOST, &value);
+	stats_pkts += (u64)value;
+	MACSEC_DISP_CNT(ctx, "if_rx_Pkts65to127Octets", (u16)(0x127), HOST, &value);
+	stats_pkts += (u64)value;
+	MACSEC_DISP_CNT(ctx, "if_rx_Pkts128to255Octets", (u16)(0x128), HOST, &value);
+	stats_pkts += (u64)value;
+	MACSEC_DISP_CNT(ctx, "if_rx_Pkts256to511Octets", (u16)(0x129), HOST, &value);
+	stats_pkts += (u64)value;
+	MACSEC_DISP_CNT(ctx, "if_rx_Pkts512to1023Octets", (u16)(0x12a), HOST, &value);
+	stats_pkts += (u64)value;
+	MACSEC_DISP_CNT(ctx, "if_rx_Pkts1024to1518Octets", (u16)(0x12b), HOST, &value);
+	stats_pkts += (u64)value;
+	MACSEC_DISP_CNT(ctx, "if_rx_Pkts1519toMaxOctets", (u16)(0x12c), HOST, &value);
+	stats_pkts += (u64)value;
+	printf("%-40s %-12lld\n", "if_rx_StatsPkts", stats_pkts);
+	macsec_read_reg(ctx, (u16)(0x13f), HOST, &value);
+	count64 = (u64)value;
+	macsec_read_reg(ctx, (u16)(0x140), HOST, &value);
+	count64 += (u64)value;
+	printf("%-40s %-12lld\n", "if_tx_octets", count64);
+	MACSEC_DISP_CNT(ctx, "if_tx_pause_pkts", (u16)(0x12e), HOST, &value);
+	MACSEC_DISP_CNT(ctx, "if_tx_ucast_pkts", (u16)(0x12f), HOST, &value);
+	MACSEC_DISP_CNT(ctx, "if_tx_multicast_pkts", (u16)(0x130), HOST, &value);
+	MACSEC_DISP_CNT(ctx, "if_tx_broadcast_pkts", (u16)(0x131), HOST, &value);
+	MACSEC_DISP_CNT(ctx, "if_tx_Pkts64Octets", (u16)(0x132), HOST, &value);
+	stats_pkts = (u64)value;
+	MACSEC_DISP_CNT(ctx, "if_tx_Pkts65to127Octets", (u16)(0x133), HOST, &value);
+	stats_pkts += (u64)value;
+	MACSEC_DISP_CNT(ctx, "if_tx_Pkts128to255Octets", (u16)(0x134), HOST, &value);
+	stats_pkts += (u64)value;
+	MACSEC_DISP_CNT(ctx, "if_tx_Pkts256to511Octets", (u16)(0x135), HOST, &value);
+	stats_pkts += (u64)value;
+	MACSEC_DISP_CNT(ctx, "if_tx_Pkts512to1023Octets", (u16)(0x136), HOST, &value);
+	stats_pkts += (u64)value;
+	MACSEC_DISP_CNT(ctx, "if_tx_Pkts1024to1518Octets", (u16)(0x137), HOST, &value);
+	stats_pkts += (u64)value;
+	MACSEC_DISP_CNT(ctx, "if_tx_Pkts1519toMaxOctets", (u16)(0x138), HOST, &value);
+	stats_pkts += (u64)value;
+	printf("%-40s %-12lld\n", "if_tx_StatsPkts", stats_pkts);
+
+	printf("\n");
+
+	return 0;
+}
+
+int macsec_rmon_hmac_reg_clear(struct cmd_context *ctx)
+{
+	u32 value = 0;
+
+	macsec_write_reg(ctx, (u16)(0x138), HOST, value);
+	macsec_write_reg(ctx, (u16)(0x139), HOST, value);
+	macsec_write_reg(ctx, (u16)(0x13a), HOST, value);
+	macsec_write_reg(ctx, (u16)(0x13b), HOST, value);
+	macsec_write_reg(ctx, (u16)(0x13c), HOST, value);
+	macsec_write_reg(ctx, (u16)(0x13d), HOST, value);
+	macsec_write_reg(ctx, (u16)(0x13e), HOST, value);
+	macsec_write_reg(ctx, (u16)(0x11a), HOST, value);
+	macsec_write_reg(ctx, (u16)(0x11c), HOST, value);
+	macsec_write_reg(ctx, (u16)(0x11d), HOST, value);
+	macsec_write_reg(ctx, (u16)(0x11e), HOST, value);
+	macsec_write_reg(ctx, (u16)(0x11f), HOST, value);
+	macsec_write_reg(ctx, (u16)(0x120), HOST, value);
+	macsec_write_reg(ctx, (u16)(0x121), HOST, value);
+	macsec_write_reg(ctx, (u16)(0x124), HOST, value);
+	macsec_write_reg(ctx, (u16)(0x125), HOST, value);
+	macsec_write_reg(ctx, (u16)(0x126), HOST, value);
+	macsec_write_reg(ctx, (u16)(0x127), HOST, value);
+	macsec_write_reg(ctx, (u16)(0x128), HOST, value);
+	macsec_write_reg(ctx, (u16)(0x129), HOST, value);
+	macsec_write_reg(ctx, (u16)(0x12a), HOST, value);
+	macsec_write_reg(ctx, (u16)(0x12b), HOST, value);
+	macsec_write_reg(ctx, (u16)(0x12c), HOST, value);
+
+	macsec_write_reg(ctx, (u16)(0x12e), HOST, value);
+	macsec_write_reg(ctx, (u16)(0x12f), HOST, value);
+	macsec_write_reg(ctx, (u16)(0x130), HOST, value);
+	macsec_write_reg(ctx, (u16)(0x131), HOST, value);
+	macsec_write_reg(ctx, (u16)(0x132), HOST, value);
+	macsec_write_reg(ctx, (u16)(0x133), HOST, value);
+	macsec_write_reg(ctx, (u16)(0x134), HOST, value);
+	macsec_write_reg(ctx, (u16)(0x135), HOST, value);
+	macsec_write_reg(ctx, (u16)(0x136), HOST, value);
+	macsec_write_reg(ctx, (u16)(0x137), HOST, value);
+	macsec_write_reg(ctx, (u16)(0x138), HOST, value);
+	macsec_write_reg(ctx, (u16)(0x13f), HOST, value);
+	macsec_write_reg(ctx, (u16)(0x140), HOST, value);
+
+	printf("\nMACSEC HOST MAC statistics cleared\n\n");
+
+	return 0;
+}
+
+int macsec_rmon_lmac_reg_dump(struct cmd_context *ctx)
+{
+	u32 value;
+	u64 count64 = 0;
+	u64 stats_pkts = 0;
+
+	printf("\nMACSEC LINE MAC statistics\n\n");
+
+	macsec_read_reg(ctx, (u16)(0x23b), LINE, &value);
+	count64 = (u64)value;
+	macsec_read_reg(ctx, (u16)(0x23c), LINE, &value);
+	count64 += (u64)value;
+	macsec_read_reg(ctx, (u16)(0x239), LINE, &value);
+	count64 += (u64)value;
+	macsec_read_reg(ctx, (u16)(0x23a), LINE, &value);
+	count64 += (u64)value;
+	printf("%-40s %-12lld\n", "if_rx_octets", count64);
+	macsec_read_reg(ctx, (u16)(0x23d), LINE, &value);
+	count64 = (u64)value;
+	macsec_read_reg(ctx, (u16)(0x23e), LINE, &value);
+	count64 += (u64)value;
+	printf("%-40s %-12lld\n", "if_rx_in_bytes", count64);
+	MACSEC_DISP_CNT(ctx, "if_rx_pause_pkts", (u16)(0x21a), LINE, &value);
+	MACSEC_DISP_CNT(ctx, "if_rx_ucast_pkts", (u16)(0x21c), LINE, &value);
+	MACSEC_DISP_CNT(ctx, "if_rx_multicast_pkts", (u16)(0x21d), LINE, &value);
+	MACSEC_DISP_CNT(ctx, "if_rx_broadcast_pkts", (u16)(0x21e), LINE, &value);
+	macsec_read_reg(ctx, (u16)(0x23b), LINE, &value);
+	count64 = (u64)value;
+	macsec_read_reg(ctx, (u16)(0x239), LINE, &value);
+	count64 += (u64)value;
+	printf("%-40s %-12lld\n", "if_rx_in_bytes", count64);
+	MACSEC_DISP_CNT(ctx, "if_rx_CRCAlignErrors", (u16)(0x21f), LINE, &value);
+	count64 = (u64)value;
+	MACSEC_DISP_CNT(ctx, "if_rx_UndersizePkts", (u16)(0x220), LINE, &value);
+	count64 += (u64)value;
+	stats_pkts = (u64)value;
+	MACSEC_DISP_CNT(ctx, "if_rx_Fragments", (u16)(0x221), LINE, &value);
+	count64 += (u64)value;
+	stats_pkts += (u64)value;
+	MACSEC_DISP_CNT(ctx, "if_rx_Jabbers", (u16)(0x225), LINE, &value);
+	count64 += (u64)value;
+	stats_pkts += (u64)value;
+	printf("%-40s %-12lld\n", "if_rx_errors", count64);
+	MACSEC_DISP_CNT(ctx, "if_rx_OversizePkts", (u16)(0x224), LINE, &value);
+	stats_pkts += (u64)value;
+	MACSEC_DISP_CNT(ctx, "if_rx_Pkts64Octets", (u16)(0x226), LINE, &value);
+	stats_pkts += (u64)value;
+	MACSEC_DISP_CNT(ctx, "if_rx_Pkts65to127Octets", (u16)(0x227), LINE, &value);
+	stats_pkts += (u64)value;
+	MACSEC_DISP_CNT(ctx, "if_rx_Pkts128to255Octets", (u16)(0x228), LINE, &value);
+	stats_pkts += (u64)value;
+	MACSEC_DISP_CNT(ctx, "if_rx_Pkts256to511Octets", (u16)(0x229), LINE, &value);
+	stats_pkts += (u64)value;
+	MACSEC_DISP_CNT(ctx, "if_rx_Pkts512to1023Octets", (u16)(0x22a), LINE, &value);
+	stats_pkts += (u64)value;
+	MACSEC_DISP_CNT(ctx, "if_rx_Pkts1024to1518Octets", (u16)(0x22b), LINE, &value);
+	stats_pkts += (u64)value;
+	MACSEC_DISP_CNT(ctx, "if_rx_Pkts1519toMaxOctets", (u16)(0x22c), LINE, &value);
+	stats_pkts += (u64)value;
+	printf("%-40s %-12lld\n", "if_rx_StatsPkts", stats_pkts);
+	macsec_read_reg(ctx, (u16)(0x23f), LINE, &value);
+	count64 = (u64)value;
+	macsec_read_reg(ctx, (u16)(0x240), LINE, &value);
+	count64 += (u64)value;
+	printf("%-40s %-12lld\n", "if_tx_octets", count64);
+	MACSEC_DISP_CNT(ctx, "if_tx_pause_pkts", (u16)(0x22e), LINE, &value);
+	MACSEC_DISP_CNT(ctx, "if_tx_ucast_pkts", (u16)(0x22f), LINE, &value);
+	MACSEC_DISP_CNT(ctx, "if_tx_multicast_pkts", (u16)(0x230), LINE, &value);
+	MACSEC_DISP_CNT(ctx, "if_tx_broadcast_pkts", (u16)(0x131), LINE, &value);
+	MACSEC_DISP_CNT(ctx, "if_tx_Pkts64Octets", (u16)(0x232), LINE, &value);
+	stats_pkts = (u64)value;
+	MACSEC_DISP_CNT(ctx, "if_tx_Pkts65to127Octets", (u16)(0x233), LINE, &value);
+	stats_pkts += (u64)value;
+	MACSEC_DISP_CNT(ctx, "if_tx_Pkts128to255Octets", (u16)(0x234), LINE, &value);
+	stats_pkts += (u64)value;
+	MACSEC_DISP_CNT(ctx, "if_tx_Pkts256to511Octets", (u16)(0x235), LINE, &value);
+	stats_pkts += (u64)value;
+	MACSEC_DISP_CNT(ctx, "if_tx_Pkts512to1023Octets", (u16)(0x236), LINE, &value);
+	stats_pkts += (u64)value;
+	MACSEC_DISP_CNT(ctx, "if_tx_Pkts1024to1518Octets", (u16)(0x237), LINE, &value);
+	stats_pkts += (u64)value;
+	MACSEC_DISP_CNT(ctx, "if_tx_Pkts1519toMaxOctets", (u16)(0x238), LINE, &value);
+	stats_pkts += (u64)value;
+	printf("%-40s %-12lld\n", "if_tx_StatsPkts", stats_pkts);
+
+	printf("\n");
+
+	return 0;
+}
+
+int macsec_rmon_lmac_reg_clear(struct cmd_context *ctx)
+{
+	u32 value = 0;
+
+	macsec_write_reg(ctx, (u16)(0x238), LINE, value);
+	macsec_write_reg(ctx, (u16)(0x239), LINE, value);
+	macsec_write_reg(ctx, (u16)(0x23a), LINE, value);
+	macsec_write_reg(ctx, (u16)(0x23b), LINE, value);
+	macsec_write_reg(ctx, (u16)(0x23c), LINE, value);
+	macsec_write_reg(ctx, (u16)(0x23d), LINE, value);
+	macsec_write_reg(ctx, (u16)(0x23e), LINE, value);
+	macsec_write_reg(ctx, (u16)(0x21a), LINE, value);
+	macsec_write_reg(ctx, (u16)(0x21c), LINE, value);
+	macsec_write_reg(ctx, (u16)(0x21d), LINE, value);
+	macsec_write_reg(ctx, (u16)(0x21e), LINE, value);
+	macsec_write_reg(ctx, (u16)(0x21f), LINE, value);
+	macsec_write_reg(ctx, (u16)(0x220), LINE, value);
+	macsec_write_reg(ctx, (u16)(0x221), LINE, value);
+	macsec_write_reg(ctx, (u16)(0x224), LINE, value);
+	macsec_write_reg(ctx, (u16)(0x225), LINE, value);
+	macsec_write_reg(ctx, (u16)(0x226), LINE, value);
+	macsec_write_reg(ctx, (u16)(0x227), LINE, value);
+	macsec_write_reg(ctx, (u16)(0x228), LINE, value);
+	macsec_write_reg(ctx, (u16)(0x229), LINE, value);
+	macsec_write_reg(ctx, (u16)(0x22a), LINE, value);
+	macsec_write_reg(ctx, (u16)(0x22b), LINE, value);
+	macsec_write_reg(ctx, (u16)(0x22c), LINE, value);
+
+	macsec_write_reg(ctx, (u16)(0x22e), LINE, value);
+	macsec_write_reg(ctx, (u16)(0x22f), LINE, value);
+	macsec_write_reg(ctx, (u16)(0x230), LINE, value);
+	macsec_write_reg(ctx, (u16)(0x231), LINE, value);
+	macsec_write_reg(ctx, (u16)(0x232), LINE, value);
+	macsec_write_reg(ctx, (u16)(0x233), LINE, value);
+	macsec_write_reg(ctx, (u16)(0x234), LINE, value);
+	macsec_write_reg(ctx, (u16)(0x235), LINE, value);
+	macsec_write_reg(ctx, (u16)(0x236), LINE, value);
+	macsec_write_reg(ctx, (u16)(0x237), LINE, value);
+	macsec_write_reg(ctx, (u16)(0x238), LINE, value);
+	macsec_write_reg(ctx, (u16)(0x23f), LINE, value);
+	macsec_write_reg(ctx, (u16)(0x240), LINE, value);
+
+	printf("\nMACSEC LINE MAC statistics cleared\n\n");
 
 	return 0;
 }

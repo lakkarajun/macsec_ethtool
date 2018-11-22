@@ -4723,7 +4723,7 @@ static int do_seee(struct cmd_context *ctx)
 int macsec_read_reg(struct cmd_context *ctx,
 					u16 addr,
 					u16 bank,
-					u32 *value)
+					u32 *const value)
 {
 	int err;
 	struct ethtool_tunable tuna;
@@ -4747,16 +4747,57 @@ int macsec_read_reg(struct cmd_context *ctx,
 	return err;
 }
 
+int macsec_write_reg(struct cmd_context *ctx,
+					 u16 addr,
+					 u16 bank,
+					 u32 const value)
+{
+	int err;
+	struct ethtool_tunable tuna;
+	u32 data[2];
+
+	tuna.cmd = ETHTOOL_PHY_STUNABLE;
+	tuna.id = ETHTOOL_PHY_MACSEC_WR_REG;
+	tuna.type_id = ETHTOOL_TUNABLE_U32;
+	tuna.len = sizeof(data);
+	tuna.data[0] = &data[0];
+	data[0] = (u32)bank << 16 | addr;
+	data[1] = value;
+	err = send_ioctl(ctx, &tuna);
+	if (err < 0) {
+		perror("Cannot write PHY MACsec register address");
+		return -1;
+	}
+
+	return err;
+}
+
 static int do_macsec_reg_dump(struct cmd_context *ctx)
 {
-	macsec_ctrl_reg_dump(ctx);
-	macsec_sa_ctrl_reg_dump(ctx);
-	macsec_sa_flow_ctrl_reg_dump(ctx);
-	macsec_ctrl_pkt_class_reg_dump(ctx);
-	macsec_ctrl_pkt_class2_reg_dump(ctx);
-	macsec_ctrl_frame_reg_dump(ctx);
-	macsec_sa_reg_dump(ctx);
-	macsec_xform_reg_dump(ctx);
+	if (ctx->argc < 1) {
+			exit_bad_args();
+	} else if (!strcmp(ctx->argp[0], "macsec")) {
+		macsec_ctrl_reg_dump(ctx);
+		macsec_sa_ctrl_reg_dump(ctx);
+		macsec_sa_flow_ctrl_reg_dump(ctx);
+		macsec_ctrl_pkt_class_reg_dump(ctx);
+		macsec_ctrl_pkt_class2_reg_dump(ctx);
+		macsec_ctrl_frame_reg_dump(ctx);
+		macsec_sa_reg_dump(ctx);
+		macsec_xform_reg_dump(ctx);
+	} else if (!strcmp(ctx->argp[0], "host-mac")) {
+		if (ctx->argp[1] != NULL && !strcmp(ctx->argp[1], "clear"))
+			macsec_rmon_hmac_reg_clear(ctx);
+		else
+			macsec_rmon_hmac_reg_dump(ctx);
+	} else if (!strcmp(ctx->argp[0], "line-mac")) {
+		if (ctx->argp[1] != NULL && !strcmp(ctx->argp[1], "clear"))
+			macsec_rmon_lmac_reg_clear(ctx);
+		else
+			macsec_rmon_lmac_reg_dump(ctx);
+	} else {
+			exit_bad_args();
+	}
 
 	return 0;
 }
@@ -5432,7 +5473,8 @@ static const struct option {
 	  "             [ bank N ]\n"
 	  "             [ val N ]\n" },
 	{ "--macsec-reg-dump", 1, do_macsec_reg_dump,
-	  "MACsec registers dump" },
+	  "MACsec  registers dump or Host/Line counters display",
+	  "[ macsec | [[ host-mac | line-mac ] | clear]\n" },
 	{ "--set-phy-tunable", 1, do_set_phy_tunable, "Set PHY tunable",
 	  "		[ downshift on|off [count N] ]\n"},
 	{ "--get-phy-tunable", 1, do_get_phy_tunable, "Get PHY tunable",
