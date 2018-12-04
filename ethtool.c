@@ -4795,6 +4795,25 @@ static int do_macsec_reg_dump(struct cmd_context *ctx)
 			macsec_rmon_lmac_reg_clear(ctx);
 		else
 			macsec_rmon_lmac_reg_dump(ctx);
+	} else if (!strcmp(ctx->argp[0], "counters")) {
+		if (ctx->argp[1] != NULL && !strcmp(ctx->argp[1], "clear"))
+			macsec_counters_clear(ctx);
+		else
+			exit_bad_args();
+	} else if (!strcmp(ctx->argp[0], "tx-sa")) {
+		if (ctx->argp[1] != NULL && !strcmp(ctx->argp[1], "record")) {
+			int record = atoi(ctx->argp[2]);
+			macsec_tx_sa_counters_dump(ctx, record);
+		} else {
+			exit_bad_args();
+		}
+	} else if (!strcmp(ctx->argp[0], "rx-sa")) {
+		if (ctx->argp[1] != NULL && !strcmp(ctx->argp[1], "record")) {
+			int record = atoi(ctx->argp[2]);
+			macsec_rx_sa_counters_dump(ctx, record);
+		} else {
+			exit_bad_args();
+		}
 	} else {
 			exit_bad_args();
 	}
@@ -5473,8 +5492,12 @@ static const struct option {
 	  "             [ bank N ]\n"
 	  "             [ val N ]\n" },
 	{ "--macsec-reg-dump", 1, do_macsec_reg_dump,
-	  "MACsec  registers dump or Host/Line counters display",
-	  "[ macsec | [[ host-mac | line-mac ] | clear]\n" },
+	  "MACsec  registers dump or Host/Line counters display or clear",
+	  "             [ macsec ]"
+      "             [[ host-mac | line-mac ] | clear]"
+      "             [ tx-sa record <n> ]"
+      "             [ rx-sa record <n> ]"
+      "             [ counters clear ] \n" },
 	{ "--set-phy-tunable", 1, do_set_phy_tunable, "Set PHY tunable",
 	  "		[ downshift on|off [count N] ]\n"},
 	{ "--get-phy-tunable", 1, do_get_phy_tunable, "Get PHY tunable",

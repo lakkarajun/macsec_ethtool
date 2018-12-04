@@ -370,4 +370,8 @@ int macsec_rmon_hmac_reg_clear(struct cmd_context *ctx);
 int macsec_rmon_lmac_reg_dump(struct cmd_context *ctx);
 int macsec_rmon_lmac_reg_clear(struct cmd_context *ctx);
 
+int macsec_counters_clear(struct cmd_context *ctx);
+int macsec_tx_sa_counters_dump(struct cmd_context *ctx, const u16 record);
+int macsec_rx_sa_counters_dump(struct cmd_context *ctx, const u16 record);
+
 #endif /* ETHTOOL_INTERNAL_H__ */
