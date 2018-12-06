@@ -18,8 +18,8 @@
 
 #define MAX_RECORDS 16
 typedef struct {
-  u64 out_pkts_protected;
-  u64 out_pkts_encrypted;
+    u64 out_pkts_protected;
+    u64 out_pkts_encrypted;
 } macsec_txsa_counters_t;
 
 typedef struct {
@@ -660,12 +660,13 @@ int macsec_tx_sa_counters_dump(struct cmd_context *ctx, const u16 record)
 	u32 value;
 	u64 out_pkts_encrypted = 0;
 
+	memset(&macsec_all_counters, 0, sizeof(macsec_all_counters_t));
 	macsec_restore_counters();
 	macsec_read_reg(ctx, (u16)(0xa005 | (record * 32)), EGR, &value);
     out_pkts_encrypted = (u64) value << 32;
 	macsec_read_reg(ctx, (u16)(0xa004 | (record * 32)), EGR, &value);
     out_pkts_encrypted |= (u64) value;
-	macsec_all_counters.txsa_counter[record].out_pkts_protected += out_pkts_encrypted;
+	macsec_all_counters.txsa_counter[record].out_pkts_encrypted += out_pkts_encrypted;
 	printf("\nTX SA Counters: Record(%d) \n", record);
 	printf("Packets encrypted\t: %lld\n", macsec_all_counters.txsa_counter[record].out_pkts_encrypted);
 	macsec_store_counters();
