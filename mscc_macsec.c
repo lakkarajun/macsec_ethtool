@@ -17,6 +17,7 @@
 	printf("%-40s %-12d\n", d, *v)
 
 #define MAX_RECORDS 16
+
 typedef struct {
     u64 out_pkts_protected;
     u64 out_pkts_encrypted;
@@ -69,13 +70,79 @@ typedef struct {
 } macsec_secy_counters_t;
 
 typedef struct {
+	u64 if_in_octets;
+	u64 if_in_pkts;
+	u64 if_in_ucast_pkts;
+	u64 if_in_multicast_pkts;
+	u64 if_in_broadcast_pkts;
+	u64 if_in_discards;
+	u64 if_in_errors;
+	u64 if_out_octets;
+	u64 if_out_pkts;
+	u64 if_out_errors;
+	u64 if_out_ucast_pkts;
+	u64 if_out_multicast_pkts;
+	u64 if_out_broadcast_pkts;
+} macsec_controlled_counters_t;
+
+typedef struct {
+	u64 if_in_octets;
+	u64 if_in_ucast_pkts;
+	u64 if_in_multicast_pkts;
+	u64 if_in_broadcast_pkts;
+	u64 if_in_discards;
+	u64 if_in_errors;
+	u64 if_out_octets;
+	u64 if_out_ucast_pkts;
+	u64 if_out_broadcast_pkts;
+	u64 if_out_errors;
+} macsec_common_counters_t;
+
+typedef struct {
 	macsec_txsa_counters_t txsa_counter[MAX_RECORDS];
 	macsec_rxsa_counters_t rxsa_counter[MAX_RECORDS];
 	macsec_txsc_counters_t txsc_counter;
 	macsec_rxsc_counters_t rxsc_counter;
 	macsec_secy_counters_t secy_counter;
+	macsec_controlled_counters_t macsec_controlled_counter;
+	macsec_common_counters_t macsec_common_counter;
+	macsec_common_counters_t macsec_uncontrolled_counter;
 } macsec_all_counters_t;
 static macsec_all_counters_t macsec_all_counters;
+
+static macsec_common_counters_t macsec_common_counters;
+static macsec_common_counters_t macsec_uncontrolled_counters;
+
+int macsec_txsc_counters_dump(struct cmd_context *ctx);
+int macsec_rxsc_counters_dump(struct cmd_context *ctx);
+int macsec_secy_counters_dump(struct cmd_context *ctx);
+
+bool macsec_txsa_confidentiality_get(struct cmd_context *ctx, u16 record)
+{
+	u32 value;
+	macsec_read_reg(ctx, (u16)(0x9c00 | (record * 32)), EGR, &value);
+	if (value & 0x80000000)
+		return true;
+	else
+		return false;
+}
+
+bool macsec_txsa_protect_frame_get(struct cmd_context *ctx, u16 record)
+{
+	u32 value;
+	macsec_read_reg(ctx, (u16)(0x9c00 | (record * 32)), EGR, &value);
+	if (value & 0x10000)
+		return true;
+	else
+		return false;
+}
+
+int macsec_rxsa_validate_frame_get(struct cmd_context *ctx, u16 record)
+{
+	u32 value;
+	macsec_read_reg(ctx, (u16)(0x1c00 | (record * 32)), INGR, &value);
+	return ((value & 0x180000) >> 19);
+}
 
 int macsec_ctrl_reg_dump(struct cmd_context *ctx)
 {
@@ -658,18 +725,28 @@ int macsec_counters_clear(struct cmd_context *ctx)
 int macsec_tx_sa_counters_dump(struct cmd_context *ctx, const u16 record)
 {
 	u32 value;
-	u64 out_pkts_encrypted = 0;
+	u64 out_pkts_cnt = 0;
 
 	memset(&macsec_all_counters, 0, sizeof(macsec_all_counters_t));
 	macsec_restore_counters();
 	macsec_read_reg(ctx, (u16)(0xa005 | (record * 32)), EGR, &value);
-    out_pkts_encrypted = (u64) value << 32;
+	out_pkts_cnt = (u64) value << 32;
 	macsec_read_reg(ctx, (u16)(0xa004 | (record * 32)), EGR, &value);
-    out_pkts_encrypted |= (u64) value;
-	macsec_all_counters.txsa_counter[record].out_pkts_encrypted += out_pkts_encrypted;
+	out_pkts_cnt |= (u64) value;
+	if (macsec_txsa_confidentiality_get(ctx, record)) {
+		macsec_all_counters.txsa_counter[record].out_pkts_encrypted += out_pkts_cnt;
+		macsec_all_counters.txsa_counter[record].out_pkts_protected = 0;
+	} else {
+		macsec_all_counters.txsa_counter[record].out_pkts_encrypted = 0;
+		macsec_all_counters.txsa_counter[record].out_pkts_protected += out_pkts_cnt;
+	}
 	printf("\nTX SA Counters: Record(%d) \n", record);
 	printf("Packets encrypted\t: %lld\n", macsec_all_counters.txsa_counter[record].out_pkts_encrypted);
+	printf("Packets protected\t: %lld\n", macsec_all_counters.txsa_counter[record].out_pkts_protected);
 	macsec_store_counters();
+	// TBD
+	macsec_txsc_counters_dump(ctx);
+	macsec_secy_counters_dump(ctx);
 
 	return 0;
 }
@@ -690,46 +767,47 @@ int macsec_rx_sa_counters_dump(struct cmd_context *ctx, const u16 record)
 //	u64 if_in_multicast_pkt = 0;  // Address: 0x2018-19 Rev B
 //	u64 if_in_broadcast_pkts = 0; // Address: 0x201a-1b Rev B
 
+	memset(&macsec_all_counters, 0, sizeof(macsec_all_counters_t));
 	macsec_restore_counters();
 	macsec_read_reg(ctx, (u16)(0x200b | (record * 32)), INGR, &value);
-    in_pkts_ok = (u64) value << 32;
+	in_pkts_ok = (u64) value << 32;
 	macsec_read_reg(ctx, (u16)(0x200a | (record * 32)), INGR, &value);
-    in_pkts_ok |= (u64) value;
+	in_pkts_ok |= (u64) value;
 	macsec_all_counters.rxsa_counter[record].in_pkts_ok += in_pkts_ok;
 	macsec_read_reg(ctx, (u16)(0x200d | (record * 32)), INGR, &value);
-    in_pkts_invalid = (u64) value << 32;
+	in_pkts_invalid = (u64) value << 32;
 	macsec_read_reg(ctx, (u16)(0x200c | (record * 32)), INGR, &value);
-    in_pkts_invalid |= (u64) value;
+	in_pkts_invalid |= (u64) value;
 	macsec_all_counters.rxsa_counter[record].in_pkts_invalid += in_pkts_invalid;
 	macsec_read_reg(ctx, (u16)(0x200f | (record * 32)), INGR, &value);
-    in_pkts_not_valid = (u64) value << 32;
+	in_pkts_not_valid = (u64) value << 32;
 	macsec_read_reg(ctx, (u16)(0x200e | (record * 32)), INGR, &value);
-    in_pkts_not_valid |= (u64) value;
+	in_pkts_not_valid |= (u64) value;
 	macsec_all_counters.rxsa_counter[record].in_pkts_not_valid += in_pkts_not_valid;
 	macsec_read_reg(ctx, (u16)(0x2011 | (record * 32)), INGR, &value);
-    in_pkts_not_using_sa = (u64) value << 32;
+	in_pkts_not_using_sa = (u64) value << 32;
 	macsec_read_reg(ctx, (u16)(0x2010 | (record * 32)), INGR, &value);
-    in_pkts_not_using_sa |= (u64) value;
+	in_pkts_not_using_sa |= (u64) value;
 	macsec_all_counters.rxsa_counter[record].in_pkts_not_using_sa += in_pkts_not_using_sa;
 	macsec_read_reg(ctx, (u16)(0x2013 | (record * 32)), INGR, &value);
-    in_pkts_unused_sa = (u64) value << 32;
+	in_pkts_unused_sa = (u64) value << 32;
 	macsec_read_reg(ctx, (u16)(0x2012 | (record * 32)), INGR, &value);
-    in_pkts_unused_sa |= (u64) value;
+	in_pkts_unused_sa |= (u64) value;
 	macsec_all_counters.rxsa_counter[record].in_pkts_unused_sa += in_pkts_unused_sa;
 	macsec_read_reg(ctx, (u16)(0x2005 | (record * 32)), INGR, &value);
-    in_pkts_unchecked = (u64) value << 32;
+	in_pkts_unchecked = (u64) value << 32;
 	macsec_read_reg(ctx, (u16)(0x2004 | (record * 32)), INGR, &value);
-    in_pkts_unchecked |= (u64) value;
+	in_pkts_unchecked |= (u64) value;
 	macsec_all_counters.rxsa_counter[record].in_pkts_unchecked += in_pkts_unchecked;
 	macsec_read_reg(ctx, (u16)(0x2007 | (record * 32)), INGR, &value);
-    in_pkts_delayed = (u64) value << 32;
+	in_pkts_delayed = (u64) value << 32;
 	macsec_read_reg(ctx, (u16)(0x2006 | (record * 32)), INGR, &value);
-    in_pkts_delayed |= (u64) value;
+	in_pkts_delayed |= (u64) value;
 	macsec_all_counters.rxsa_counter[record].in_pkts_delayed += in_pkts_delayed;
 	macsec_read_reg(ctx, (u16)(0x2009 | (record * 32)), INGR, &value);
-    in_pkts_late = (u64) value << 32;
+	in_pkts_late = (u64) value << 32;
 	macsec_read_reg(ctx, (u16)(0x2008 | (record * 32)), INGR, &value);
-    in_pkts_late |= (u64) value;
+	in_pkts_late |= (u64) value;
 	macsec_all_counters.rxsa_counter[record].in_pkts_late += in_pkts_late;
     // Need to fix here:
 	macsec_read_reg(ctx, (u16)(0x2001 | (record * 32)), INGR, &value);
@@ -737,7 +815,6 @@ int macsec_rx_sa_counters_dump(struct cmd_context *ctx, const u16 record)
 	macsec_read_reg(ctx, (u16)(0x2000 | (record * 32)), INGR, &value);
     in_octets_decrypted |= (u64) value;
 	macsec_all_counters.rxsc_counter.in_octets_decrypted += in_octets_decrypted;
-
 
 	printf("\nRX SA Counters: Record(%d):\n", record);
 	printf("Packets Ok\t\t: %lld\n", macsec_all_counters.rxsa_counter[record].in_pkts_ok);
@@ -752,7 +829,102 @@ int macsec_rx_sa_counters_dump(struct cmd_context *ctx, const u16 record)
 	printf("Packets Late\t\t: %lld\n", macsec_all_counters.rxsa_counter[record].in_pkts_late);
 	printf("Octets Decrypted\t: %lld\n", macsec_all_counters.rxsc_counter.in_octets_decrypted);
 	macsec_store_counters();
+	// TBD
+	macsec_rxsc_counters_dump(ctx);
+	macsec_secy_counters_dump(ctx);
 
+	return 0;
+}
+
+int macsec_txsc_counters_dump(struct cmd_context *ctx)
+{
+	u16 record;
+
+	memset(&macsec_all_counters, 0, sizeof(macsec_all_counters_t));
+	macsec_restore_counters();
+	for (record = 0; record < MAX_RECORDS; record++) {
+		macsec_all_counters.txsc_counter.out_pkts_protected += macsec_all_counters.txsa_counter[record].out_pkts_protected;
+		macsec_all_counters.txsc_counter.out_pkts_encrypted += macsec_all_counters.txsa_counter[record].out_pkts_encrypted;
+	}
+
+	printf("\nTX SC Counters: \n");
+	printf("Packets protected\t: %lld\n", macsec_all_counters.txsc_counter.out_pkts_protected);
+	printf("Packets encrypted\t: %lld\n", macsec_all_counters.txsc_counter.out_pkts_encrypted);
+	printf("\nOctects protected\t: %lld\n", macsec_all_counters.txsc_counter.out_octets_protected);
+	printf("Octects encrypted\t: %lld\n", macsec_all_counters.txsc_counter.out_octets_encrypted);
+
+	return 0;
+}
+
+int macsec_rxsc_counters_dump(struct cmd_context *ctx)
+{
+	u16 record;
+
+	memset(&macsec_all_counters, 0, sizeof(macsec_all_counters_t));
+	macsec_restore_counters();
+	for (record = 0; record < MAX_RECORDS; record++) {
+		macsec_all_counters.rxsc_counter.in_pkts_ok += macsec_all_counters.rxsa_counter[record].in_pkts_ok;
+		macsec_all_counters.rxsc_counter.in_pkts_invalid += macsec_all_counters.rxsa_counter[record].in_pkts_invalid;
+		macsec_all_counters.rxsc_counter.in_pkts_not_valid += macsec_all_counters.rxsa_counter[record].in_pkts_not_valid;
+		macsec_all_counters.rxsc_counter.in_pkts_not_using_sa += macsec_all_counters.rxsa_counter[record].in_pkts_not_using_sa;
+		macsec_all_counters.rxsc_counter.in_pkts_unused_sa += macsec_all_counters.rxsa_counter[record].in_pkts_unused_sa;
+		macsec_all_counters.rxsc_counter.in_pkts_unchecked += macsec_all_counters.rxsa_counter[record].in_pkts_unchecked;
+		macsec_all_counters.rxsc_counter.in_pkts_delayed += macsec_all_counters.rxsa_counter[record].in_pkts_delayed;
+		macsec_all_counters.rxsc_counter.in_pkts_late += macsec_all_counters.rxsa_counter[record].in_pkts_late;
+	}
+
+	printf("\nRX SC Counters: \n");
+	printf("Packets unchecked\t: %lld\n", macsec_all_counters.rxsc_counter.in_pkts_unchecked);
+	printf("Packets delayed \t: %lld\n", macsec_all_counters.rxsc_counter.in_pkts_delayed);
+	printf("Packets Late\t\t: %lld\n", macsec_all_counters.rxsc_counter.in_pkts_late);
+	printf("Packets Ok \t\t: %lld\n", macsec_all_counters.rxsc_counter.in_pkts_ok);
+	printf("Packets Invalid \t: %lld\n", macsec_all_counters.rxsc_counter.in_pkts_invalid);
+	printf("Packets Not valid \t: %lld\n", macsec_all_counters.rxsc_counter.in_pkts_not_valid);
+	printf("Packets Not using SA \t: %lld\n", macsec_all_counters.rxsc_counter.in_pkts_not_using_sa);
+	printf("Packets Unused SA \t: %lld\n", macsec_all_counters.rxsc_counter.in_pkts_unused_sa);
+	printf("Octets Validated \t: %lld\n", macsec_all_counters.rxsc_counter.in_octets_validated);
+	printf("Octets Decrypted \t: %lld\n", macsec_all_counters.rxsc_counter.in_octets_decrypted);
+
+	// Need to remove from here
+	macsec_rxsa_validate_frame_get(ctx, 0);
+	return 0;
+}
+
+int macsec_secy_counters_dump(struct cmd_context *ctx)
+{
+	u32 value;
+	u64 out_pkts_too_long;
+	u64 cnt;
+	//u64 out_octets_protected;
+	// u64 out_octets_encrypted;
+	u16 record;
+
+	memset(&macsec_all_counters, 0, sizeof(macsec_all_counters_t));
+	macsec_restore_counters();
+	for (record = 0; record < MAX_RECORDS; record++) {
+		macsec_read_reg(ctx, (u16)(0xa007 | (record * 32)), INGR, &value);
+		out_pkts_too_long = (u64) value << 32;
+		macsec_read_reg(ctx, (u16)(0xa006 | (record * 32)), INGR, &value);
+		out_pkts_too_long |= (u64) value;
+		macsec_all_counters.secy_counter.out_pkts_too_long += out_pkts_too_long;
+		macsec_read_reg(ctx, (u16)(0xa001 | (record * 32)), INGR, &value);
+		cnt = (u64) value << 32;
+		macsec_read_reg(ctx, (u16)(0xa000 | (record * 32)), INGR, &value);
+		cnt |= (u64) value;
+		if (!macsec_txsa_protect_frame_get(ctx, record)) {
+			macsec_all_counters.secy_counter.out_pkts_untagged += cnt;
+		} else if(macsec_txsa_confidentiality_get(ctx, record)) {
+
+		}
+	}
+
+	for (record = 0; record < MAX_RECORDS; record++) {
+		macsec_all_counters.secy_counter.out_octets_protected +=
+			(macsec_all_counters.txsa_counter[record].out_pkts_encrypted +
+             macsec_all_counters.txsa_counter[record].out_pkts_protected);
+	}
+
+	printf("\nSecY Counters:\n");
 	return 0;
 }
 
