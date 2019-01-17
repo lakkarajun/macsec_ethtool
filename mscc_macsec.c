@@ -17,56 +17,64 @@
 	printf("%-40s %-12d\n", d, *v)
 
 #define MAX_RECORDS 16
+#define REV_B 1
+#define MACSEC_BYPASS_TAG_ONE 1
+#define MACSEC_BYPASS_TAG_TWO 2
+
+
+// Need to fix
+static u8 macsec_ver = 1;
 
 typedef struct {
-    u64 out_pkts_protected;
-    u64 out_pkts_encrypted;
+	u64 out_pkts_protected;
+	u64 out_pkts_encrypted;
 } macsec_txsa_counters_t;
 
 typedef struct {
-    u64 in_pkts_ok;
-    u64 in_pkts_invalid;
-    u64 in_pkts_not_valid;
-    u64 in_pkts_not_using_sa;
-    u64 in_pkts_unused_sa;
-    u64 in_pkts_unchecked;
-    u64 in_pkts_delayed;
-    u64 in_pkts_late;
+	u64 in_pkts_ok;
+	u64 in_pkts_invalid;
+	u64 in_pkts_not_valid;
+	u64 in_pkts_not_using_sa;
+	u64 in_pkts_unused_sa;
+	u64 in_pkts_unchecked;
+	u64 in_pkts_delayed;
+	u64 in_pkts_late;
 } macsec_rxsa_counters_t;
 
 typedef struct {
-    u64 out_pkts_protected;
-    u64 out_pkts_encrypted;
-    u64 out_octets_protected;
-    u64 out_octets_encrypted;
+	u64 out_pkts_protected;
+	u64 out_pkts_encrypted;
+	u64 out_octets_protected;
+	u64 out_octets_encrypted;
+	u64 out_octets_untagged;
 } macsec_txsc_counters_t;
 
 typedef struct {
-    u64 in_pkts_unchecked;
-    u64 in_pkts_delayed;
-    u64 in_pkts_late;
-    u64 in_pkts_ok;
-    u64 in_pkts_invalid;
-    u64 in_pkts_not_valid;
-    u64 in_pkts_not_using_sa;
-    u64 in_pkts_unused_sa;
-    u64 in_octets_validated;
-    u64 in_octets_decrypted;
+	u64 in_pkts_unchecked;
+	u64 in_pkts_delayed;
+	u64 in_pkts_late;
+	u64 in_pkts_ok;
+	u64 in_pkts_invalid;
+	u64 in_pkts_not_valid;
+	u64 in_pkts_not_using_sa;
+	u64 in_pkts_unused_sa;
+	u64 in_octets_validated;
+	u64 in_octets_decrypted;
 } macsec_rxsc_counters_t;
 
 typedef struct {
-    u64 in_pkts_untagged;
-    u64 in_pkts_no_tag;
-    u64 in_pkts_bad_tag;
-    u64 in_pkts_unknown_sci;
-    u64 in_pkts_no_sci;
-    u64 in_pkts_overrun;
-    u64 in_octets_validated;
-    u64 in_octets_decrypted;
-    u64 out_pkts_untagged;
-    u64 out_pkts_too_long;
-    u64 out_octets_protected;
-    u64 out_octets_encrypted;
+	u64 in_pkts_untagged;
+	u64 in_pkts_no_tag;
+	u64 in_pkts_bad_tag;
+	u64 in_pkts_unknown_sci;
+	u64 in_pkts_no_sci;
+	u64 in_pkts_overrun;
+	u64 in_octets_validated;
+	u64 in_octets_decrypted;
+	u64 out_pkts_untagged;
+	u64 out_pkts_too_long;
+	u64 out_octets_protected;
+	u64 out_octets_encrypted;
 } macsec_secy_counters_t;
 
 typedef struct {
@@ -83,7 +91,7 @@ typedef struct {
 	u64 if_out_ucast_pkts;
 	u64 if_out_multicast_pkts;
 	u64 if_out_broadcast_pkts;
-} macsec_controlled_counters_t;
+} macsec_controlled_counters_t;  /* i.e. vtss_macsec_secy_port_counters_t */
 
 typedef struct {
 	u64 if_in_octets;
@@ -110,12 +118,20 @@ typedef struct {
 } macsec_all_counters_t;
 static macsec_all_counters_t macsec_all_counters;
 
-static macsec_common_counters_t macsec_common_counters;
-static macsec_common_counters_t macsec_uncontrolled_counters;
+//static macsec_common_counters_t macsec_common_counters;
+//static macsec_common_counters_t macsec_uncontrolled_counters;
 
 int macsec_txsc_counters_dump(struct cmd_context *ctx);
 int macsec_rxsc_counters_dump(struct cmd_context *ctx);
 int macsec_secy_counters_dump(struct cmd_context *ctx);
+int macsec_controlled_counters_dump(struct cmd_context *ctx);
+
+u8 macsec_txsa_confidentiality_offset_get(struct cmd_context *ctx, u16 record)
+{
+	u32 value;
+	macsec_read_reg(ctx, (u16)(0x9c00 | (record * 32)), EGR, &value);
+	return (value & 0x70000000 >> 24);
+}
 
 bool macsec_txsa_confidentiality_get(struct cmd_context *ctx, u16 record)
 {
@@ -149,17 +165,17 @@ int macsec_ctrl_reg_dump(struct cmd_context *ctx)
 	u32 value;
 	printf("\nMACSEC_CTL_REGS MACsec Ingress Control registers\n\n");
 	MACSEC_DISP_REG(ctx, "MACSEC_ENA_CFG", (u16)(0x800), INGR, &value);
-    MACSEC_DISP_REG(ctx, "MACSEC_CTL_CFG", (u16)(0x801), INGR, &value);
-    MACSEC_DISP_REG(ctx, "MACSEC_STICKY", (u16)(0x802), INGR, &value);
-    MACSEC_DISP_REG(ctx, "MACSEC_STICKY_MASK", (u16)(0x803), INGR, &value);
-    MACSEC_DISP_REG(ctx, "MACSEC_IGR_LATENCY_CFG", (u16)(0x804), INGR, &value);
+	MACSEC_DISP_REG(ctx, "MACSEC_CTL_CFG", (u16)(0x801), INGR, &value);
+	MACSEC_DISP_REG(ctx, "MACSEC_STICKY", (u16)(0x802), INGR, &value);
+	MACSEC_DISP_REG(ctx, "MACSEC_STICKY_MASK", (u16)(0x803), INGR, &value);
+	MACSEC_DISP_REG(ctx, "MACSEC_IGR_LATENCY_CFG", (u16)(0x804), INGR, &value);
 
 	printf("\nMACSEC_CTL_REGS MACsec Egress Control registers\n\n");
 	MACSEC_DISP_REG(ctx, "MACSEC_ENA_CFG", (u16)(0x8800), EGR, &value);
-    MACSEC_DISP_REG(ctx, "MACSEC_CTL_CFG", (u16)(0x8801), EGR, &value);
-    MACSEC_DISP_REG(ctx, "MACSEC_STICKY", (u16)(0x8802), EGR, &value);
-    MACSEC_DISP_REG(ctx, "MACSEC_STICKY_MASK", (u16)(0x8803), EGR, &value);
-    MACSEC_DISP_REG(ctx, "MACSEC_IGR_LATENCY_CFG", (u16)(0x8804), EGR, &value);
+	MACSEC_DISP_REG(ctx, "MACSEC_CTL_CFG", (u16)(0x8801), EGR, &value);
+	MACSEC_DISP_REG(ctx, "MACSEC_STICKY", (u16)(0x8802), EGR, &value);
+	MACSEC_DISP_REG(ctx, "MACSEC_STICKY_MASK", (u16)(0x8803), EGR, &value);
+	MACSEC_DISP_REG(ctx, "MACSEC_IGR_LATENCY_CFG", (u16)(0x8804), EGR, &value);
 
 	return 0;
 }
@@ -169,26 +185,26 @@ int macsec_sa_ctrl_reg_dump(struct cmd_context *ctx)
 	u32 value;
 
 	printf("\nSA_MATCH_CTL_PARAMS - Ingress SA compare parameters\n\n");
-    MACSEC_DISP_REG(ctx, "SAM_ENTRY_ENABLE1",    (u16)(0x1800), INGR, &value);
-    MACSEC_DISP_REG(ctx, "SAM_ENTRY_ENABLE2",    (u16)(0x1801), INGR, &value);
-    MACSEC_DISP_REG(ctx, "SAM_ENTRY_TOGGLE1",    (u16)(0x1804), INGR, &value);
-    MACSEC_DISP_REG(ctx, "SAM_ENTRY_TOGGLE2",    (u16)(0x1805), INGR, &value);
-    MACSEC_DISP_REG(ctx, "SAM_ENTRY_SET1",       (u16)(0x1808), INGR, &value);
-    MACSEC_DISP_REG(ctx, "SAM_ENTRY_SET2",       (u16)(0x1809), INGR, &value);
-    MACSEC_DISP_REG(ctx, "SAM_ENTRY_CLEAR1",     (u16)(0x180C), INGR, &value);
-    MACSEC_DISP_REG(ctx, "SAM_ENTRY_CLEAR2",     (u16)(0x180D), INGR, &value);
-    MACSEC_DISP_REG(ctx, "SAM_IN_FLIGHT",        (u16)(0x1810), INGR, &value);
+	MACSEC_DISP_REG(ctx, "SAM_ENTRY_ENABLE1",    (u16)(0x1800), INGR, &value);
+	MACSEC_DISP_REG(ctx, "SAM_ENTRY_ENABLE2",    (u16)(0x1801), INGR, &value);
+	MACSEC_DISP_REG(ctx, "SAM_ENTRY_TOGGLE1",    (u16)(0x1804), INGR, &value);
+	MACSEC_DISP_REG(ctx, "SAM_ENTRY_TOGGLE2",    (u16)(0x1805), INGR, &value);
+	MACSEC_DISP_REG(ctx, "SAM_ENTRY_SET1",       (u16)(0x1808), INGR, &value);
+	MACSEC_DISP_REG(ctx, "SAM_ENTRY_SET2",       (u16)(0x1809), INGR, &value);
+	MACSEC_DISP_REG(ctx, "SAM_ENTRY_CLEAR1",     (u16)(0x180C), INGR, &value);
+	MACSEC_DISP_REG(ctx, "SAM_ENTRY_CLEAR2",     (u16)(0x180D), INGR, &value);
+	MACSEC_DISP_REG(ctx, "SAM_IN_FLIGHT",        (u16)(0x1810), INGR, &value);
 
 	printf("\nSA_MATCH_CTL_PARAMS - Egress SA compare parameters\n\n");
-    MACSEC_DISP_REG(ctx, "SAM_ENTRY_ENABLE1",    (u16)(0x9800), EGR, &value);
-    MACSEC_DISP_REG(ctx, "SAM_ENTRY_ENABLE2",    (u16)(0x9801), EGR, &value);
-    MACSEC_DISP_REG(ctx, "SAM_ENTRY_TOGGLE1",    (u16)(0x9804), EGR, &value);
-    MACSEC_DISP_REG(ctx, "SAM_ENTRY_TOGGLE2",    (u16)(0x9805), EGR, &value);
-    MACSEC_DISP_REG(ctx, "SAM_ENTRY_SET1",       (u16)(0x9808), EGR, &value);
-    MACSEC_DISP_REG(ctx, "SAM_ENTRY_SET2",       (u16)(0x9809), EGR, &value);
-    MACSEC_DISP_REG(ctx, "SAM_ENTRY_CLEAR1",     (u16)(0x980C), EGR, &value);
-    MACSEC_DISP_REG(ctx, "SAM_ENTRY_CLEAR2",     (u16)(0x980D), EGR, &value);
-    MACSEC_DISP_REG(ctx, "SAM_IN_FLIGHT",        (u16)(0x9810), EGR, &value);
+	MACSEC_DISP_REG(ctx, "SAM_ENTRY_ENABLE1",    (u16)(0x9800), EGR, &value);
+	MACSEC_DISP_REG(ctx, "SAM_ENTRY_ENABLE2",    (u16)(0x9801), EGR, &value);
+	MACSEC_DISP_REG(ctx, "SAM_ENTRY_TOGGLE1",    (u16)(0x9804), EGR, &value);
+	MACSEC_DISP_REG(ctx, "SAM_ENTRY_TOGGLE2",    (u16)(0x9805), EGR, &value);
+	MACSEC_DISP_REG(ctx, "SAM_ENTRY_SET1",       (u16)(0x9808), EGR, &value);
+	MACSEC_DISP_REG(ctx, "SAM_ENTRY_SET2",       (u16)(0x9809), EGR, &value);
+	MACSEC_DISP_REG(ctx, "SAM_ENTRY_CLEAR1",     (u16)(0x980C), EGR, &value);
+	MACSEC_DISP_REG(ctx, "SAM_ENTRY_CLEAR2",     (u16)(0x980D), EGR, &value);
+	MACSEC_DISP_REG(ctx, "SAM_IN_FLIGHT",        (u16)(0x9810), EGR, &value);
 
 	return 0;
 }
@@ -216,7 +232,7 @@ int macsec_ctrl_pkt_class_reg_dump(struct cmd_context *ctx)
 {
 	u16 idx;
 	u32 value;
-	
+
 	printf("\nIngress CTL_PACKET_CLASS_PARAMS - Control packet classification parameters\n\n");
 	for (idx = 0; idx < 10; idx++) {
 		MACSEC_DISP_REG(ctx, "CP_MAC_DA_MATCH",  (u16)(0x1E00 + (2 * idx)), INGR, &value);
@@ -241,30 +257,30 @@ int macsec_ctrl_pkt_class_reg_dump(struct cmd_context *ctx)
 int macsec_ctrl_pkt_class2_reg_dump(struct cmd_context *ctx)
 {
 	u32 value;
-	
+
 	printf("\nIngress CTL_PACKET_CLASS_PARAMS2 - Control packet classification parameters\n\n");
-    MACSEC_DISP_REG(ctx, "CP_MAC_DA_START_LO",      (u16)(0x1E20), INGR, &value);
-    MACSEC_DISP_REG(ctx, "CP_MAC_DA_START_HI",      (u16)(0x1E21), INGR, &value);
-    MACSEC_DISP_REG(ctx, "CP_MAC_DA_END_LO",        (u16)(0x1E22), INGR, &value);
-    MACSEC_DISP_REG(ctx, "CP_MAC_DA_END_HI",        (u16)(0x1E23), INGR, &value);
-    MACSEC_DISP_REG(ctx, "CP_MAC_DA_44_BITS_LO",    (u16)(0x1E24), INGR, &value);
-    MACSEC_DISP_REG(ctx, "CP_MAC_DA_44_BITS_HI",    (u16)(0x1E25), INGR, &value);
-    MACSEC_DISP_REG(ctx, "CP_MAC_DA_48_BITS_LO",    (u16)(0x1E26), INGR, &value);
-    MACSEC_DISP_REG(ctx, "CP_MAC_DA_48_BITS_HI",    (u16)(0x1E27), INGR, &value);
-    MACSEC_DISP_REG(ctx, "CP_MATCH_MODE",           (u16)(0x1E3E), INGR, &value);
-    MACSEC_DISP_REG(ctx, "CP_MATCH_ENABLE",         (u16)(0x1E3F), INGR, &value);
+	MACSEC_DISP_REG(ctx, "CP_MAC_DA_START_LO",      (u16)(0x1E20), INGR, &value);
+	MACSEC_DISP_REG(ctx, "CP_MAC_DA_START_HI",      (u16)(0x1E21), INGR, &value);
+	MACSEC_DISP_REG(ctx, "CP_MAC_DA_END_LO",        (u16)(0x1E22), INGR, &value);
+	MACSEC_DISP_REG(ctx, "CP_MAC_DA_END_HI",        (u16)(0x1E23), INGR, &value);
+	MACSEC_DISP_REG(ctx, "CP_MAC_DA_44_BITS_LO",    (u16)(0x1E24), INGR, &value);
+	MACSEC_DISP_REG(ctx, "CP_MAC_DA_44_BITS_HI",    (u16)(0x1E25), INGR, &value);
+	MACSEC_DISP_REG(ctx, "CP_MAC_DA_48_BITS_LO",    (u16)(0x1E26), INGR, &value);
+	MACSEC_DISP_REG(ctx, "CP_MAC_DA_48_BITS_HI",    (u16)(0x1E27), INGR, &value);
+	MACSEC_DISP_REG(ctx, "CP_MATCH_MODE",           (u16)(0x1E3E), INGR, &value);
+	MACSEC_DISP_REG(ctx, "CP_MATCH_ENABLE",         (u16)(0x1E3F), INGR, &value);
 
 	printf("\nEgress CTL_PACKET_CLASS_PARAMS2 - Control packet classification parameters\n\n");
-    MACSEC_DISP_REG(ctx, "CP_MAC_DA_START_LO",      (u16)(0x9E20), EGR, &value);
-    MACSEC_DISP_REG(ctx, "CP_MAC_DA_START_HI",      (u16)(0x9E21), EGR, &value);
-    MACSEC_DISP_REG(ctx, "CP_MAC_DA_END_LO",        (u16)(0x9E22), EGR, &value);
-    MACSEC_DISP_REG(ctx, "CP_MAC_DA_END_HI",        (u16)(0x9E23), EGR, &value);
-    MACSEC_DISP_REG(ctx, "CP_MAC_DA_44_BITS_LO",    (u16)(0x9E24), EGR, &value);
-    MACSEC_DISP_REG(ctx, "CP_MAC_DA_44_BITS_HI",    (u16)(0x9E25), EGR, &value);
-    MACSEC_DISP_REG(ctx, "CP_MAC_DA_48_BITS_LO",    (u16)(0x9E26), EGR, &value);
-    MACSEC_DISP_REG(ctx, "CP_MAC_DA_48_BITS_HI",    (u16)(0x9E27), EGR, &value);
-    MACSEC_DISP_REG(ctx, "CP_MATCH_MODE",           (u16)(0x9E3E), EGR, &value);
-    MACSEC_DISP_REG(ctx, "CP_MATCH_ENABLE",         (u16)(0x9E3F), EGR, &value);
+	MACSEC_DISP_REG(ctx, "CP_MAC_DA_START_LO",      (u16)(0x9E20), EGR, &value);
+	MACSEC_DISP_REG(ctx, "CP_MAC_DA_START_HI",      (u16)(0x9E21), EGR, &value);
+	MACSEC_DISP_REG(ctx, "CP_MAC_DA_END_LO",        (u16)(0x9E22), EGR, &value);
+	MACSEC_DISP_REG(ctx, "CP_MAC_DA_END_HI",        (u16)(0x9E23), EGR, &value);
+	MACSEC_DISP_REG(ctx, "CP_MAC_DA_44_BITS_LO",    (u16)(0x9E24), EGR, &value);
+	MACSEC_DISP_REG(ctx, "CP_MAC_DA_44_BITS_HI",    (u16)(0x9E25), EGR, &value);
+	MACSEC_DISP_REG(ctx, "CP_MAC_DA_48_BITS_LO",    (u16)(0x9E26), EGR, &value);
+	MACSEC_DISP_REG(ctx, "CP_MAC_DA_48_BITS_HI",    (u16)(0x9E27), EGR, &value);
+	MACSEC_DISP_REG(ctx, "CP_MATCH_MODE",           (u16)(0x9E3E), EGR, &value);
+	MACSEC_DISP_REG(ctx, "CP_MATCH_ENABLE",         (u16)(0x9E3F), EGR, &value);
 
 	return 0;
 }
@@ -272,30 +288,30 @@ int macsec_ctrl_pkt_class2_reg_dump(struct cmd_context *ctx)
 int macsec_ctrl_frame_reg_dump(struct cmd_context *ctx)
 {
 	u32 value;
-	
+
 	printf("\nIngress FRAME_MATCHING_HANDLING_CTRL - Frame matching and handling control registers\n\n");
-    MACSEC_DISP_REG(ctx, "SAM_CP_TAG",          (u16)(0x1E40), INGR, &value);
-    MACSEC_DISP_REG(ctx, "SAM_PP_TAGS",         (u16)(0x1E41), INGR, &value);
-    MACSEC_DISP_REG(ctx, "SAM_PP_TAGS2",        (u16)(0x1E42), INGR, &value);
-    MACSEC_DISP_REG(ctx, "SAM_CP_TAG2",         (u16)(0x1E43), INGR, &value);
-    MACSEC_DISP_REG(ctx, "SAM_NM_PARAMS",       (u16)(0x1E50), INGR, &value);
-    MACSEC_DISP_REG(ctx, "SAM_NM_FLOW_NCP",     (u16)(0x1E51), INGR, &value);
-    MACSEC_DISP_REG(ctx, "SAM_NM_FLOW_CP",      (u16)(0x1E52), INGR, &value);
-    MACSEC_DISP_REG(ctx, "MISC_CONTROL",        (u16)(0x1E5F), INGR, &value);
-    MACSEC_DISP_REG(ctx, "HDR_EXT_CTRL",        (u16)(0x1E60), INGR, &value);
-    MACSEC_DISP_REG(ctx, "CRYPT_AUTH_CTRL",     (u16)(0x1E61), INGR, &value);
+	MACSEC_DISP_REG(ctx, "SAM_CP_TAG",          (u16)(0x1E40), INGR, &value);
+	MACSEC_DISP_REG(ctx, "SAM_PP_TAGS",         (u16)(0x1E41), INGR, &value);
+	MACSEC_DISP_REG(ctx, "SAM_PP_TAGS2",        (u16)(0x1E42), INGR, &value);
+	MACSEC_DISP_REG(ctx, "SAM_CP_TAG2",         (u16)(0x1E43), INGR, &value);
+	MACSEC_DISP_REG(ctx, "SAM_NM_PARAMS",       (u16)(0x1E50), INGR, &value);
+	MACSEC_DISP_REG(ctx, "SAM_NM_FLOW_NCP",     (u16)(0x1E51), INGR, &value);
+	MACSEC_DISP_REG(ctx, "SAM_NM_FLOW_CP",      (u16)(0x1E52), INGR, &value);
+	MACSEC_DISP_REG(ctx, "MISC_CONTROL",        (u16)(0x1E5F), INGR, &value);
+	MACSEC_DISP_REG(ctx, "HDR_EXT_CTRL",        (u16)(0x1E60), INGR, &value);
+	MACSEC_DISP_REG(ctx, "CRYPT_AUTH_CTRL",     (u16)(0x1E61), INGR, &value);
 
 	printf("\nEgress FRAME_MATCHING_HANDLING_CTRL - Frame matching and handling control registers\n\n");
-    MACSEC_DISP_REG(ctx, "SAM_CP_TAG",          (u16)(0x9E40), EGR, &value);
-    MACSEC_DISP_REG(ctx, "SAM_PP_TAGS",         (u16)(0x9E41), EGR, &value);
-    MACSEC_DISP_REG(ctx, "SAM_PP_TAGS2",        (u16)(0x9E42), EGR, &value);
-    MACSEC_DISP_REG(ctx, "SAM_CP_TAG2",         (u16)(0x9E43), EGR, &value);
-    MACSEC_DISP_REG(ctx, "SAM_NM_PARAMS",       (u16)(0x9E50), EGR, &value);
-    MACSEC_DISP_REG(ctx, "SAM_NM_FLOW_NCP",     (u16)(0x9E51), EGR, &value);
-    MACSEC_DISP_REG(ctx, "SAM_NM_FLOW_CP",      (u16)(0x9E52), EGR, &value);
-    MACSEC_DISP_REG(ctx, "MISC_CONTROL",        (u16)(0x9E5F), EGR, &value);
-    MACSEC_DISP_REG(ctx, "HDR_EXT_CTRL",        (u16)(0x9E60), EGR, &value);
-    MACSEC_DISP_REG(ctx, "CRYPT_AUTH_CTRL",     (u16)(0x9E61), EGR, &value);
+	MACSEC_DISP_REG(ctx, "SAM_CP_TAG",          (u16)(0x9E40), EGR, &value);
+	MACSEC_DISP_REG(ctx, "SAM_PP_TAGS",         (u16)(0x9E41), EGR, &value);
+	MACSEC_DISP_REG(ctx, "SAM_PP_TAGS2",        (u16)(0x9E42), EGR, &value);
+	MACSEC_DISP_REG(ctx, "SAM_CP_TAG2",         (u16)(0x9E43), EGR, &value);
+	MACSEC_DISP_REG(ctx, "SAM_NM_PARAMS",       (u16)(0x9E50), EGR, &value);
+	MACSEC_DISP_REG(ctx, "SAM_NM_FLOW_NCP",     (u16)(0x9E51), EGR, &value);
+	MACSEC_DISP_REG(ctx, "SAM_NM_FLOW_CP",      (u16)(0x9E52), EGR, &value);
+	MACSEC_DISP_REG(ctx, "MISC_CONTROL",        (u16)(0x9E5F), EGR, &value);
+	MACSEC_DISP_REG(ctx, "HDR_EXT_CTRL",        (u16)(0x9E60), EGR, &value);
+	MACSEC_DISP_REG(ctx, "CRYPT_AUTH_CTRL",     (u16)(0x9E61), EGR, &value);
 
 	return 0;
 }
@@ -305,39 +321,39 @@ int macsec_sa_reg_dump(struct cmd_context *ctx)
 	const u8 no_entries = 16;
 	u16 idx;
 	u32 value;
-	
+
 	printf("\nSA: Ingress SA Match Params\n\n");
 	for (idx = 0; idx < no_entries; idx++) {
-        MACSEC_DISP_REG(ctx, "SAM_MAC_SA_MATCH_LO",  (u16)(0x1000 + (0x10 * idx)), INGR, &value);
-        MACSEC_DISP_REG(ctx, "SAM_MAC_SA_MATCH_HI",  (u16)(0x1000 + (0x10 * idx) + 1), INGR, &value);
-        MACSEC_DISP_REG(ctx, "SAM_MAC_DA_MATCH_LO",  (u16)(0x1000 + (0x10 * idx) + 2), INGR, &value);
-        MACSEC_DISP_REG(ctx, "SAM_MAC_DA_MATCH_HI",  (u16)(0x1000 + (0x10 * idx) + 3), INGR, &value);
-        MACSEC_DISP_REG(ctx, "SAM_MISC_MATCH",       (u16)(0x1000 + (0x10 * idx) + 4), INGR, &value);
-        MACSEC_DISP_REG(ctx, "SAM_SCI_MATCH_LO",     (u16)(0x1000 + (0x10 * idx) + 5), INGR, &value);
-        MACSEC_DISP_REG(ctx, "SAM_SCI_MATCH_HI",     (u16)(0x1000 + (0x10 * idx) + 6), INGR, &value);
-        MACSEC_DISP_REG(ctx, "SAM_MASK",             (u16)(0x1000 + (0x10 * idx) + 7), INGR, &value);
-        MACSEC_DISP_REG(ctx, "SAM_EXT_MATCH",        (u16)(0x1000 + (0x10 * idx) + 8), INGR, &value);
-        MACSEC_DISP_REG(ctx, "SAM_HDR_BYPASS_MATCH1", (u16)(0x1000 + (0x10 * idx) + 9), INGR, &value);
-        MACSEC_DISP_REG(ctx, "SAM_HDR_BYPASS_MATCH2", (u16)(0x1000 + (0x10 * idx) + 0xA), INGR, &value);
-        MACSEC_DISP_REG(ctx, "SAM_HDR_BYPASS_MASK1", (u16)(0x1000 + (0x10 * idx) + 0xB), INGR, &value);
-        MACSEC_DISP_REG(ctx, "SAM_HDR_BYPASS_MASK2", (u16)(0x1000 + (0x10 * idx) + 0xC), INGR, &value);
+		MACSEC_DISP_REG(ctx, "SAM_MAC_SA_MATCH_LO",  (u16)(0x1000 + (0x10 * idx)), INGR, &value);
+		MACSEC_DISP_REG(ctx, "SAM_MAC_SA_MATCH_HI",  (u16)(0x1000 + (0x10 * idx) + 1), INGR, &value);
+		MACSEC_DISP_REG(ctx, "SAM_MAC_DA_MATCH_LO",  (u16)(0x1000 + (0x10 * idx) + 2), INGR, &value);
+		MACSEC_DISP_REG(ctx, "SAM_MAC_DA_MATCH_HI",  (u16)(0x1000 + (0x10 * idx) + 3), INGR, &value);
+		MACSEC_DISP_REG(ctx, "SAM_MISC_MATCH",       (u16)(0x1000 + (0x10 * idx) + 4), INGR, &value);
+		MACSEC_DISP_REG(ctx, "SAM_SCI_MATCH_LO",     (u16)(0x1000 + (0x10 * idx) + 5), INGR, &value);
+		MACSEC_DISP_REG(ctx, "SAM_SCI_MATCH_HI",     (u16)(0x1000 + (0x10 * idx) + 6), INGR, &value);
+		MACSEC_DISP_REG(ctx, "SAM_MASK",             (u16)(0x1000 + (0x10 * idx) + 7), INGR, &value);
+		MACSEC_DISP_REG(ctx, "SAM_EXT_MATCH",        (u16)(0x1000 + (0x10 * idx) + 8), INGR, &value);
+		MACSEC_DISP_REG(ctx, "SAM_HDR_BYPASS_MATCH1", (u16)(0x1000 + (0x10 * idx) + 9), INGR, &value);
+		MACSEC_DISP_REG(ctx, "SAM_HDR_BYPASS_MATCH2", (u16)(0x1000 + (0x10 * idx) + 0xA), INGR, &value);
+		MACSEC_DISP_REG(ctx, "SAM_HDR_BYPASS_MASK1", (u16)(0x1000 + (0x10 * idx) + 0xB), INGR, &value);
+		MACSEC_DISP_REG(ctx, "SAM_HDR_BYPASS_MASK2", (u16)(0x1000 + (0x10 * idx) + 0xC), INGR, &value);
 	}
 
 	printf("\nSA: Egress SA Match Params\n\n");
 	for (idx = 0; idx < no_entries; idx++) {
-        MACSEC_DISP_REG(ctx, "SAM_MAC_SA_MATCH_LO",  (u16)(0x9000 + (0x10 * idx)), EGR, &value);
-        MACSEC_DISP_REG(ctx, "SAM_MAC_SA_MATCH_HI",  (u16)(0x9000 + (0x10 * idx) + 1), EGR, &value);
-        MACSEC_DISP_REG(ctx, "SAM_MAC_DA_MATCH_LO",  (u16)(0x9000 + (0x10 * idx) + 2), EGR, &value);
-        MACSEC_DISP_REG(ctx, "SAM_MAC_DA_MATCH_HI",  (u16)(0x9000 + (0x10 * idx) + 3), EGR, &value);
-        MACSEC_DISP_REG(ctx, "SAM_MISC_MATCH",       (u16)(0x9000 + (0x10 * idx) + 4), EGR, &value);
-        MACSEC_DISP_REG(ctx, "SAM_SCI_MATCH_LO",     (u16)(0x9000 + (0x10 * idx) + 5), EGR, &value);
-        MACSEC_DISP_REG(ctx, "SAM_SCI_MATCH_HI",     (u16)(0x9000 + (0x10 * idx) + 6), EGR, &value);
-        MACSEC_DISP_REG(ctx, "SAM_MASK",             (u16)(0x9000 + (0x10 * idx) + 7), EGR, &value);
-        MACSEC_DISP_REG(ctx, "SAM_EXT_MATCH",        (u16)(0x9000 + (0x10 * idx) + 8), EGR, &value);
-        MACSEC_DISP_REG(ctx, "SAM_HDR_BYPASS_MATCH1", (u16)(0x9000 + (0x10 * idx) + 9), EGR, &value);
-        MACSEC_DISP_REG(ctx, "SAM_HDR_BYPASS_MATCH2", (u16)(0x9000 + (0x10 * idx) + 0xA), EGR, &value);
-        MACSEC_DISP_REG(ctx, "SAM_HDR_BYPASS_MASK1", (u16)(0x9000 + (0x10 * idx) + 0xB), EGR, &value);
-        MACSEC_DISP_REG(ctx, "SAM_HDR_BYPASS_MASK2", (u16)(0x9000 + (0x10 * idx) + 0xC), EGR, &value);
+		MACSEC_DISP_REG(ctx, "SAM_MAC_SA_MATCH_LO",  (u16)(0x9000 + (0x10 * idx)), EGR, &value);
+		MACSEC_DISP_REG(ctx, "SAM_MAC_SA_MATCH_HI",  (u16)(0x9000 + (0x10 * idx) + 1), EGR, &value);
+		MACSEC_DISP_REG(ctx, "SAM_MAC_DA_MATCH_LO",  (u16)(0x9000 + (0x10 * idx) + 2), EGR, &value);
+		MACSEC_DISP_REG(ctx, "SAM_MAC_DA_MATCH_HI",  (u16)(0x9000 + (0x10 * idx) + 3), EGR, &value);
+		MACSEC_DISP_REG(ctx, "SAM_MISC_MATCH",       (u16)(0x9000 + (0x10 * idx) + 4), EGR, &value);
+		MACSEC_DISP_REG(ctx, "SAM_SCI_MATCH_LO",     (u16)(0x9000 + (0x10 * idx) + 5), EGR, &value);
+		MACSEC_DISP_REG(ctx, "SAM_SCI_MATCH_HI",     (u16)(0x9000 + (0x10 * idx) + 6), EGR, &value);
+		MACSEC_DISP_REG(ctx, "SAM_MASK",             (u16)(0x9000 + (0x10 * idx) + 7), EGR, &value);
+		MACSEC_DISP_REG(ctx, "SAM_EXT_MATCH",        (u16)(0x9000 + (0x10 * idx) + 8), EGR, &value);
+		MACSEC_DISP_REG(ctx, "SAM_HDR_BYPASS_MATCH1", (u16)(0x9000 + (0x10 * idx) + 9), EGR, &value);
+		MACSEC_DISP_REG(ctx, "SAM_HDR_BYPASS_MATCH2", (u16)(0x9000 + (0x10 * idx) + 0xA), EGR, &value);
+		MACSEC_DISP_REG(ctx, "SAM_HDR_BYPASS_MASK1", (u16)(0x9000 + (0x10 * idx) + 0xB), EGR, &value);
+		MACSEC_DISP_REG(ctx, "SAM_HDR_BYPASS_MASK2", (u16)(0x9000 + (0x10 * idx) + 0xC), EGR, &value);
 	}
 
 	return 0;
@@ -350,7 +366,7 @@ int macsec_xform_reg_dump(struct cmd_context *ctx)
 	u16 base_addr, addr;
 	u16 idx, reg;
 	u32 value, value1, value2, value3;
-	
+
 	printf("\nIngress XFORM_RECORD_REGS - Transform context records\n\n");
 	macsec_read_reg(ctx, (u16)0x1E5F, INGR, &value);
 	rec_size = (value & 0x03000000) >> 24;
@@ -743,6 +759,32 @@ int macsec_tx_sa_counters_dump(struct cmd_context *ctx, const u16 record)
 	printf("\nTX SA Counters: Record(%d) \n", record);
 	printf("Packets encrypted\t: %lld\n", macsec_all_counters.txsa_counter[record].out_pkts_encrypted);
 	printf("Packets protected\t: %lld\n", macsec_all_counters.txsa_counter[record].out_pkts_protected);
+
+	macsec_read_reg(ctx, (u16)(0xa001 | (record * 32)), EGR, &value);
+	out_pkts_cnt = (u64) value << 32;
+	macsec_read_reg(ctx, (u16)(0xa000 | (record * 32)), EGR, &value);
+	out_pkts_cnt |= (u64) value;
+	if (!macsec_txsa_protect_frame_get(ctx, record) && macsec_ver == REV_B) {
+		macsec_all_counters.txsc_counter.out_octets_untagged += out_pkts_cnt;
+	} else if (macsec_txsa_confidentiality_get(ctx, record)) {
+		u8 offset = macsec_txsa_confidentiality_offset_get(ctx, record);
+		if (out_pkts_cnt > macsec_all_counters.txsa_counter[record].out_pkts_encrypted * offset) {
+			macsec_all_counters.txsc_counter.out_octets_encrypted += (out_pkts_cnt - (macsec_all_counters.txsa_counter[record].out_pkts_encrypted * offset));
+			macsec_all_counters.txsc_counter.out_octets_protected += (macsec_all_counters.txsa_counter[record].out_pkts_encrypted * offset);
+		} else {
+			macsec_all_counters.txsc_counter.out_octets_protected += out_pkts_cnt;
+		}
+	} else {
+		macsec_all_counters.txsc_counter.out_octets_protected += out_pkts_cnt;
+	}
+
+	// SecY Too Log counters:
+	macsec_read_reg(ctx, (u16)(0xa007 | (record * 32)), INGR, &value);
+	out_pkts_cnt = (u64) value << 32;
+	macsec_read_reg(ctx, (u16)(0xa006 | (record * 32)), INGR, &value);
+	out_pkts_cnt |= (u64) value;
+	macsec_all_counters.secy_counter.out_pkts_too_long += out_pkts_cnt;
+
 	macsec_store_counters();
 	// TBD
 	macsec_txsc_counters_dump(ctx);
@@ -757,7 +799,7 @@ int macsec_rx_sa_counters_dump(struct cmd_context *ctx, const u16 record)
 	u64 in_pkts_ok = 0;
 	u64 in_pkts_invalid = 0;
 	u64 in_pkts_not_valid = 0;
-    u64 in_pkts_not_using_sa = 0;
+	u64 in_pkts_not_using_sa = 0;
 	u64 in_pkts_unused_sa = 0;
 	u64 in_pkts_unchecked = 0;
 	u64 in_pkts_delayed = 0;
@@ -811,10 +853,11 @@ int macsec_rx_sa_counters_dump(struct cmd_context *ctx, const u16 record)
 	macsec_all_counters.rxsa_counter[record].in_pkts_late += in_pkts_late;
     // Need to fix here:
 	macsec_read_reg(ctx, (u16)(0x2001 | (record * 32)), INGR, &value);
-    in_octets_decrypted = (u64) value << 32;
+	in_octets_decrypted = (u64) value << 32;
 	macsec_read_reg(ctx, (u16)(0x2000 | (record * 32)), INGR, &value);
-    in_octets_decrypted |= (u64) value;
+	in_octets_decrypted |= (u64) value;
 	macsec_all_counters.rxsc_counter.in_octets_decrypted += in_octets_decrypted;
+	macsec_store_counters();
 
 	printf("\nRX SA Counters: Record(%d):\n", record);
 	printf("Packets Ok\t\t: %lld\n", macsec_all_counters.rxsa_counter[record].in_pkts_ok);
@@ -823,12 +866,14 @@ int macsec_rx_sa_counters_dump(struct cmd_context *ctx, const u16 record)
 	printf("Packets Not using SA\t: %lld\n", macsec_all_counters.rxsa_counter[record].in_pkts_not_using_sa);
 	printf("Packets Unused SA\t: %lld\n", macsec_all_counters.rxsa_counter[record].in_pkts_unused_sa);
 
+#if 0
 	printf("\nRX SC Counters: Record(%d):\n", record);
 	printf("Packets unchecked\t: %lld\n", macsec_all_counters.rxsa_counter[record].in_pkts_unchecked);
 	printf("Packets delayed\t\t: %lld\n", macsec_all_counters.rxsa_counter[record].in_pkts_delayed);
 	printf("Packets Late\t\t: %lld\n", macsec_all_counters.rxsa_counter[record].in_pkts_late);
 	printf("Octets Decrypted\t: %lld\n", macsec_all_counters.rxsc_counter.in_octets_decrypted);
-	macsec_store_counters();
+#endif
+
 	// TBD
 	macsec_rxsc_counters_dump(ctx);
 	macsec_secy_counters_dump(ctx);
@@ -846,11 +891,12 @@ int macsec_txsc_counters_dump(struct cmd_context *ctx)
 		macsec_all_counters.txsc_counter.out_pkts_protected += macsec_all_counters.txsa_counter[record].out_pkts_protected;
 		macsec_all_counters.txsc_counter.out_pkts_encrypted += macsec_all_counters.txsa_counter[record].out_pkts_encrypted;
 	}
+	macsec_store_counters();
 
 	printf("\nTX SC Counters: \n");
 	printf("Packets protected\t: %lld\n", macsec_all_counters.txsc_counter.out_pkts_protected);
 	printf("Packets encrypted\t: %lld\n", macsec_all_counters.txsc_counter.out_pkts_encrypted);
-	printf("\nOctects protected\t: %lld\n", macsec_all_counters.txsc_counter.out_octets_protected);
+	printf("Octects protected\t: %lld\n", macsec_all_counters.txsc_counter.out_octets_protected);
 	printf("Octects encrypted\t: %lld\n", macsec_all_counters.txsc_counter.out_octets_encrypted);
 
 	return 0;
@@ -872,6 +918,7 @@ int macsec_rxsc_counters_dump(struct cmd_context *ctx)
 		macsec_all_counters.rxsc_counter.in_pkts_delayed += macsec_all_counters.rxsa_counter[record].in_pkts_delayed;
 		macsec_all_counters.rxsc_counter.in_pkts_late += macsec_all_counters.rxsa_counter[record].in_pkts_late;
 	}
+	macsec_store_counters();
 
 	printf("\nRX SC Counters: \n");
 	printf("Packets unchecked\t: %lld\n", macsec_all_counters.rxsc_counter.in_pkts_unchecked);
@@ -885,8 +932,6 @@ int macsec_rxsc_counters_dump(struct cmd_context *ctx)
 	printf("Octets Validated \t: %lld\n", macsec_all_counters.rxsc_counter.in_octets_validated);
 	printf("Octets Decrypted \t: %lld\n", macsec_all_counters.rxsc_counter.in_octets_decrypted);
 
-	// Need to remove from here
-	macsec_rxsa_validate_frame_get(ctx, 0);
 	return 0;
 }
 
@@ -895,12 +940,11 @@ int macsec_secy_counters_dump(struct cmd_context *ctx)
 	u32 value;
 	u64 out_pkts_too_long;
 	u64 cnt;
-	//u64 out_octets_protected;
-	// u64 out_octets_encrypted;
 	u16 record;
+	macsec_secy_counters_t *secy_cnts = &macsec_all_counters.secy_counter;
 
-	memset(&macsec_all_counters, 0, sizeof(macsec_all_counters_t));
-	macsec_restore_counters();
+//	memset(&macsec_all_counters, 0, sizeof(macsec_all_counters_t));
+//	macsec_restore_counters();
 	for (record = 0; record < MAX_RECORDS; record++) {
 		macsec_read_reg(ctx, (u16)(0xa007 | (record * 32)), INGR, &value);
 		out_pkts_too_long = (u64) value << 32;
@@ -919,12 +963,89 @@ int macsec_secy_counters_dump(struct cmd_context *ctx)
 	}
 
 	for (record = 0; record < MAX_RECORDS; record++) {
-		macsec_all_counters.secy_counter.out_octets_protected +=
+		macsec_all_counters.secy_counter.out_octets_protected += 
 			(macsec_all_counters.txsa_counter[record].out_pkts_encrypted +
-             macsec_all_counters.txsa_counter[record].out_pkts_protected);
+			 macsec_all_counters.txsa_counter[record].out_pkts_protected);
 	}
 
 	printf("\nSecY Counters:\n");
+	printf("Rx Packets untagged in\t: %llu\n", secy_cnts->in_pkts_untagged);
+	printf("Rx Packets no tag\t: %llu\n", secy_cnts->in_pkts_no_tag);
+	printf("Rx Packets bad tag\t: %llu\n", secy_cnts->in_pkts_bad_tag);
+	printf("Rx Packets unknown sci\t: %llu\n", secy_cnts->in_pkts_unknown_sci);
+	printf("Rx Packets no sci\t: %llu\n", secy_cnts->in_pkts_no_sci);
+	printf("Rx Packets overrun\t: %llu\n", secy_cnts->in_pkts_overrun);
+	printf("Rx Octets validated\t: %llu\n", secy_cnts->in_octets_validated);
+	printf("Rx Octets decrypted\t: %llu\n", secy_cnts->in_octets_decrypted);
+	printf("Tx Packets untagged out\t: %llu\n", secy_cnts->out_pkts_untagged);
+	printf("Tx Packets untagged out\t: %llu\n", secy_cnts->out_pkts_too_long);
+	printf("Tx Packets too long\t: %llu\n", secy_cnts->out_octets_protected);
+	printf("Tx Octets encrypted\t: %llu\n", secy_cnts->out_octets_encrypted);
+
+	macsec_controlled_counters_dump(ctx);
 	return 0;
 }
 
+int macsec_controlled_counters_dump(struct cmd_context *ctx)
+{
+	macsec_controlled_counters_t cntl_cnts;
+	macsec_secy_counters_t *secy_cnts = &macsec_all_counters.secy_counter;
+	macsec_txsc_counters_t *txsc_cnts = &macsec_all_counters.txsc_counter;
+	macsec_rxsc_counters_t *rxsc_cnts = &macsec_all_counters.rxsc_counter;
+	u8 octets_add = 12;
+	u8 bypass_mode = 0;
+	u64 in_pkts_not_valid = 0;
+	u64 in_pkts_not_using_sa = 0;
+
+	u64 in_pkts_bad_tag   = secy_cnts->in_pkts_bad_tag;
+	u64 in_pkts_no_sci    = secy_cnts->in_pkts_no_sci;
+	u64 in_pkts_no_tag    = secy_cnts->in_pkts_no_tag;
+	u64 in_pkts_overrun   = secy_cnts->in_pkts_overrun;
+	u64 if_out_octets     = secy_cnts->out_octets_protected + secy_cnts->out_octets_encrypted;
+	if (macsec_ver == REV_B)
+		if_out_octets += macsec_all_counters.txsc_counter.out_octets_untagged;
+
+	// Need to fix:
+	in_pkts_not_valid += macsec_all_counters.rxsc_counter.in_pkts_not_valid;
+	in_pkts_not_using_sa += macsec_all_counters.rxsc_counter.in_pkts_not_using_sa;
+	cntl_cnts.if_in_errors = in_pkts_bad_tag + in_pkts_no_sci +
+							 in_pkts_not_valid + in_pkts_not_using_sa;
+	cntl_cnts.if_in_pkts = rxsc_cnts->in_pkts_ok + rxsc_cnts->in_pkts_invalid +
+						   rxsc_cnts->in_pkts_not_using_sa + rxsc_cnts->in_pkts_unused_sa +
+						   rxsc_cnts->in_pkts_unchecked + rxsc_cnts->in_pkts_delayed + rxsc_cnts->in_pkts_late;
+	// Fix me
+	cntl_cnts.if_in_octets = 0;
+
+	// From IEEE 802.1AE-2006, page 57- The ifOutErrors count is equal to the OutPktsTooLong count (Figure 10-4).
+	cntl_cnts.if_out_errors = secy_cnts->out_pkts_too_long;
+	cntl_cnts.if_in_discards = in_pkts_no_tag + macsec_all_counters.rxsc_counter.in_pkts_late +
+							   in_pkts_overrun;
+	cntl_cnts.if_out_pkts = txsc_cnts->out_pkts_encrypted + txsc_cnts->out_pkts_protected;
+	if (macsec_ver == REV_B)
+		cntl_cnts.if_out_pkts += secy_cnts->out_pkts_untagged;
+	// Next to fix:
+	bypass_mode = 0; //Fix me: macsec_bypass_mode_get(ctx, record);
+	if (bypass_mode == MACSEC_BYPASS_TAG_ONE)
+		octets_add += 4;
+	else if (bypass_mode == MACSEC_BYPASS_TAG_TWO)
+		octets_add += 8;
+	// Next to fix - Many be wrong calcuation:
+	cntl_cnts.if_out_octets = if_out_octets + cntl_cnts.if_out_pkts * octets_add;
+
+	printf("\nControlled Port Counters:\n");
+	printf("In Octets\t\t: %llu\n", cntl_cnts.if_in_octets);
+	printf("In Packets\t\t: %llu\n", cntl_cnts.if_in_pkts);
+//	printf("In Ucast Packets\t\t: %llu\n", cntl_cnts.if_in_ucast_pkts);
+//	printf("In Mcast Packets\t\t: %llu\n", cntl_cnts.if_in_multicast_pkts);
+//	printf("In Bcast Packets\t\t: %llu\n", cntl_cnts.if_in_broadcast_pkts);
+	printf("In Discards\t\t: %llu\n", cntl_cnts.if_in_discards);
+	printf("In Errors\t\t: %llu\n", cntl_cnts.if_in_errors);
+	printf("Out Octets\t\t: %llu\n", cntl_cnts.if_out_octets);
+	printf("Out Packets\t\t: %llu\n", cntl_cnts.if_out_pkts);
+	printf("Out Errors\t\t: %llu\n", cntl_cnts.if_out_errors);
+//	printf("Out Ucast Packets\t\t: %llu\n", cntl_cnts.if_out_ucast_pkts);
+//	printf("Out Mcast Packets\t\t: %llu\n", cntl_cnts.if_out_multicast_pkts);
+//	printf("Out Bcast Packets\t\t: %llu\n", cntl_cnts.if_out_broadcast_pkts);
+
+	return 0;
+}
