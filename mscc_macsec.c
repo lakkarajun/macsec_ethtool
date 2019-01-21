@@ -27,6 +27,7 @@
 // Need to fix
 static u8 macsec_ver = 1;
 static u8 encoding_sa = 0;
+static u8 always_include_sci = 1;
 
 typedef struct {
 	u64 out_pkts_protected;
@@ -95,20 +96,7 @@ typedef struct {
 	u64 if_out_ucast_pkts;
 	u64 if_out_multicast_pkts;
 	u64 if_out_broadcast_pkts;
-} macsec_controlled_counters_t;  /* i.e. vtss_macsec_secy_port_counters_t */
-
-typedef struct {
-	u64 if_in_octets;
-	u64 if_in_ucast_pkts;
-	u64 if_in_multicast_pkts;
-	u64 if_in_broadcast_pkts;
-	u64 if_in_discards;
-	u64 if_in_errors;
-	u64 if_out_octets;
-	u64 if_out_ucast_pkts;
-	u64 if_out_broadcast_pkts;
-	u64 if_out_errors;
-} macsec_common_counters_t;
+} macsec_port_counters_t;  /* i.e. vtss_macsec_secy_port_counters_t */
 
 typedef struct {
 	macsec_txsa_counters_t txsa_counter[MAX_RECORDS];
@@ -116,19 +104,18 @@ typedef struct {
 	macsec_txsc_counters_t txsc_counter;
 	macsec_rxsc_counters_t rxsc_counter;
 	macsec_secy_counters_t secy_counter;
-	macsec_controlled_counters_t controlled_counter;
-	macsec_common_counters_t macsec_common_counter;
-	macsec_common_counters_t macsec_uncontrolled_counter;
+	macsec_port_counters_t controlled_counter;
+	macsec_port_counters_t uncontrolled_counter;
+	macsec_port_counters_t common_counter;
 } macsec_all_counters_t;
 static macsec_all_counters_t macsec_all_counters;
-
-//static macsec_common_counters_t macsec_common_counters;
-//static macsec_common_counters_t macsec_uncontrolled_counters;
 
 int macsec_txsc_counters_dump(struct cmd_context *ctx);
 int macsec_rxsc_counters_dump(struct cmd_context *ctx);
 int macsec_secy_counters_dump(struct cmd_context *ctx);
 int macsec_controlled_counters_dump(struct cmd_context *ctx);
+int macsec_uncontrolled_counters_dump(struct cmd_context *ctx);
+int macsec_common_counters_dump(struct cmd_context *ctx);
 
 u8 macsec_rxsa_confidentiality_offset_get(struct cmd_context *ctx, u16 record)
 {
@@ -756,7 +743,7 @@ int macsec_tx_sa_counters_dump(struct cmd_context *ctx, const u16 record)
 	macsec_txsa_counters_t *txsa_cnts;
 	macsec_txsc_counters_t *txsc_cnts;
 	macsec_secy_counters_t *secy_cnts;
-	macsec_controlled_counters_t *cntl_cnts;
+	macsec_port_counters_t *cntl_cnts;
 
 	memset(&macsec_all_counters, 0, sizeof(macsec_all_counters_t));
 	macsec_restore_counters();
@@ -839,7 +826,7 @@ int macsec_rx_sa_counters_dump(struct cmd_context *ctx, const u16 record)
 	u64 in_pkts_cnt = 0;
 	macsec_rxsa_counters_t *rxsa_cnts;
 	macsec_rxsc_counters_t *rxsc_cnts;
-	macsec_controlled_counters_t *cntl_cnts;
+	macsec_port_counters_t *cntl_cnts;
 
 	memset(&macsec_all_counters, 0, sizeof(macsec_all_counters_t));
 	macsec_restore_counters();
@@ -1091,6 +1078,8 @@ int macsec_secy_counters_dump(struct cmd_context *ctx)
 
 	// Need to remove:
 	macsec_controlled_counters_dump(ctx);
+	macsec_common_counters_dump(ctx);
+	macsec_uncontrolled_counters_dump(ctx);
 	return 0;
 }
 
@@ -1099,7 +1088,7 @@ int macsec_controlled_counters_dump(struct cmd_context *ctx)
 	macsec_txsc_counters_t *txsc_cnts;
 	macsec_rxsc_counters_t *rxsc_cnts;
 	macsec_secy_counters_t *secy_cnts;
-	macsec_controlled_counters_t *cntl_cnts;
+	macsec_port_counters_t *cntl_cnts;
 	u8 octets_add = 12;
 	u8 bypass_mode = 0;
 
@@ -1109,25 +1098,31 @@ int macsec_controlled_counters_dump(struct cmd_context *ctx)
 	secy_cnts = &macsec_all_counters.secy_counter;
 	txsc_cnts = &macsec_all_counters.txsc_counter;
 	rxsc_cnts = &macsec_all_counters.rxsc_counter;
-	cntl_cnts->if_out_octets = secy_cnts->out_octets_protected + secy_cnts->out_octets_encrypted;
+	cntl_cnts->if_out_octets = secy_cnts->out_octets_protected +
+				   secy_cnts->out_octets_encrypted;
 	if (macsec_ver == REV_B)
 		cntl_cnts->if_out_octets += txsc_cnts->out_octets_untagged;
 
 	// Need to fix for Multiple RxSCs
-	cntl_cnts->if_in_errors = secy_cnts->in_pkts_bad_tag + secy_cnts->in_pkts_no_sci +
-							  rxsc_cnts->in_pkts_not_valid + rxsc_cnts->in_pkts_not_using_sa;
-	cntl_cnts->if_in_pkts = rxsc_cnts->in_pkts_ok + rxsc_cnts->in_pkts_invalid +
-							rxsc_cnts->in_pkts_not_using_sa + rxsc_cnts->in_pkts_unused_sa +
-							rxsc_cnts->in_pkts_unchecked + rxsc_cnts->in_pkts_delayed +
-							rxsc_cnts->in_pkts_late;
+	cntl_cnts->if_in_errors = secy_cnts->in_pkts_bad_tag +
+				  secy_cnts->in_pkts_no_sci +
+				  rxsc_cnts->in_pkts_not_valid +
+				  rxsc_cnts->in_pkts_not_using_sa;
+	cntl_cnts->if_in_pkts = rxsc_cnts->in_pkts_ok +
+				rxsc_cnts->in_pkts_invalid +
+				rxsc_cnts->in_pkts_not_using_sa +
+				rxsc_cnts->in_pkts_unused_sa +
+				rxsc_cnts->in_pkts_unchecked +
+				rxsc_cnts->in_pkts_delayed +
+				rxsc_cnts->in_pkts_late;
 	// Need to fix:
 	cntl_cnts->if_in_octets = 0;
-
-	// From IEEE 802.1AE-2006, page 57- The ifOutErrors count is equal to the OutPktsTooLong count (Figure 10-4).
 	cntl_cnts->if_out_errors = secy_cnts->out_pkts_too_long;
-	cntl_cnts->if_in_discards = secy_cnts->in_pkts_no_tag + secy_cnts->in_pkts_overrun +
-								rxsc_cnts->in_pkts_late;
-	cntl_cnts->if_out_pkts = txsc_cnts->out_pkts_encrypted + txsc_cnts->out_pkts_protected;
+	cntl_cnts->if_in_discards = secy_cnts->in_pkts_no_tag +
+				    secy_cnts->in_pkts_overrun +
+				    rxsc_cnts->in_pkts_late;
+	cntl_cnts->if_out_pkts = txsc_cnts->out_pkts_encrypted +
+				 txsc_cnts->out_pkts_protected;
 	if (macsec_ver == REV_B)
 		cntl_cnts->if_out_pkts += secy_cnts->out_pkts_untagged;
 
@@ -1160,6 +1155,155 @@ int macsec_controlled_counters_dump(struct cmd_context *ctx)
 		printf("Out Mcast Packets\t: %llu\n", cntl_cnts->if_out_multicast_pkts);
 		printf("Out Bcast Packets\t: %llu\n", cntl_cnts->if_out_broadcast_pkts);
 	}
+
+	return 0;
+}
+
+int macsec_common_counters_dump(struct cmd_context *ctx)
+{
+	u32 value;
+	u64 count64 = 0;
+	macsec_rxsc_counters_t *rxsc_cnts;
+	macsec_secy_counters_t *secy_cnts;
+	macsec_port_counters_t *comm_cnts;
+
+	memset(&macsec_all_counters, 0, sizeof(macsec_all_counters_t));
+	macsec_restore_counters();
+	rxsc_cnts = &macsec_all_counters.rxsc_counter;
+	secy_cnts = &macsec_all_counters.secy_counter;
+	comm_cnts = &macsec_all_counters.common_counter;
+	// Line MAC Rx Counters
+	macsec_read_reg(ctx, (u16)(0x23c), LINE, &value);
+	count64 = (u64) value << 32;
+	macsec_read_reg(ctx, (u16)(0x23b), LINE, &value);
+	count64 |= (u64) value;
+	// Need to fix:
+	comm_cnts->if_in_octets = count64;
+	macsec_read_reg(ctx, (u16)(0x21c), LINE, &value);
+	comm_cnts->if_in_ucast_pkts = (u64) value;
+	macsec_read_reg(ctx, (u16)(0x21d), LINE, &value);
+	comm_cnts->if_in_multicast_pkts = (u64) value;
+	macsec_read_reg(ctx, (u16)(0x21e), LINE, &value);
+	comm_cnts->if_in_broadcast_pkts = (u64) value;
+	// Need to fix for Multiple RxSCs
+	comm_cnts->if_in_errors = secy_cnts->in_pkts_bad_tag +
+				  secy_cnts->in_pkts_no_sci +
+				  rxsc_cnts->in_pkts_not_valid +
+				  rxsc_cnts->in_pkts_not_using_sa;
+	comm_cnts->if_in_discards = secy_cnts->in_pkts_no_tag +
+				    secy_cnts->in_pkts_overrun +
+				    rxsc_cnts->in_pkts_late;
+
+	// Line MAC Tx Counters
+	macsec_read_reg(ctx, (u16)(0x240), LINE, &value);
+	count64 = (u64) value << 32;
+	macsec_read_reg(ctx, (u16)(0x23f), LINE, &value);
+	count64 |= (u64) value;
+	// Need to fix:
+	comm_cnts->if_out_octets = count64;
+	macsec_read_reg(ctx, (u16)(0x22f), LINE, &value);
+	comm_cnts->if_out_ucast_pkts = (u64) value;
+	macsec_read_reg(ctx, (u16)(0x230), LINE, &value);
+	comm_cnts->if_out_multicast_pkts = (u64) value;
+	macsec_read_reg(ctx, (u16)(0x231), LINE, &value);
+	comm_cnts->if_out_broadcast_pkts = (u64) value;
+	comm_cnts->if_out_errors = secy_cnts->out_pkts_too_long;
+
+	macsec_store_counters();
+
+	printf("\nCommon Port Counters:\n");
+	printf("In Octets\t\t: %llu\n", comm_cnts->if_in_octets);
+	printf("In Ucast Packets\t: %llu\n", comm_cnts->if_in_ucast_pkts);
+	printf("In Mcast Packets\t: %llu\n", comm_cnts->if_in_multicast_pkts);
+	printf("In Bcast Packets\t: %llu\n", comm_cnts->if_in_broadcast_pkts);
+	printf("In Discards\t\t: %llu\n", comm_cnts->if_in_discards);
+	printf("In Errors\t\t: %llu\n", comm_cnts->if_in_errors);
+	printf("Out Octets\t\t: %llu\n", comm_cnts->if_out_octets);
+	printf("Out Errors\t\t: %llu\n", comm_cnts->if_out_errors);
+	printf("Out Ucast Packets\t: %llu\n", comm_cnts->if_out_ucast_pkts);
+	printf("Out Mcast Packets\t: %llu\n", comm_cnts->if_out_multicast_pkts);
+	printf("Out Bcast Packets\t: %llu\n", comm_cnts->if_out_broadcast_pkts);
+
+	return 0;
+}
+
+int macsec_uncontrolled_counters_dump(struct cmd_context *ctx)
+{
+	u32 value;
+	macsec_rxsc_counters_t *rxsc_cnts;
+	macsec_secy_counters_t *secy_cnts;
+	macsec_port_counters_t *cntl_cnts;
+	macsec_port_counters_t *uncntl_cnts;
+	macsec_port_counters_t *comm_cnts;
+
+	memset(&macsec_all_counters, 0, sizeof(macsec_all_counters_t));
+	macsec_restore_counters();
+	rxsc_cnts = &macsec_all_counters.rxsc_counter;
+	secy_cnts = &macsec_all_counters.secy_counter;
+	cntl_cnts = &macsec_all_counters.controlled_counter;
+	comm_cnts = &macsec_all_counters.common_counter;
+	uncntl_cnts = &macsec_all_counters.uncontrolled_counter;
+	// Line MAC Rx Counters
+	uncntl_cnts->if_in_octets = cntl_cnts->if_in_octets +
+				    (36 * cntl_cnts->if_in_pkts);
+	macsec_read_reg(ctx, (u16)(0x21c), LINE, &value);
+	uncntl_cnts->if_in_ucast_pkts = (u64) value;
+	macsec_read_reg(ctx, (u16)(0x21d), LINE, &value);
+	uncntl_cnts->if_in_multicast_pkts = (u64) value;
+	macsec_read_reg(ctx, (u16)(0x21e), LINE, &value);
+	uncntl_cnts->if_in_broadcast_pkts = (u64) value;
+	// Need to fix for Multiple RxSCs
+	uncntl_cnts->if_in_errors = secy_cnts->in_pkts_bad_tag +
+				    secy_cnts->in_pkts_no_sci +
+				    rxsc_cnts->in_pkts_not_valid +
+				    rxsc_cnts->in_pkts_not_using_sa;
+	uncntl_cnts->if_in_discards = secy_cnts->in_pkts_no_tag +
+				      secy_cnts->in_pkts_overrun +
+				      rxsc_cnts->in_pkts_late;
+
+	// Line MAC Tx Counters
+	// Need to fix for Multiplex SecYs, record = 0:
+	if (!macsec_txsa_protect_frame_get(ctx, 0) && macsec_ver == REV_B) {
+		uncntl_cnts->if_out_octets = cntl_cnts->if_out_octets +
+					     (cntl_cnts->if_in_pkts * 4);
+	} else if (always_include_sci) { // Need to fix: always_include_sci
+		// Sectag = 16, ICV = 16, CRC = 4
+		uncntl_cnts->if_out_octets = cntl_cnts->if_out_octets +
+					     (cntl_cnts->if_in_pkts * (16+16+4));
+	} else {
+		// Sectag = 8, ICV = 16, CRC = 4
+		uncntl_cnts->if_out_octets = cntl_cnts->if_out_octets +
+					     (cntl_cnts->if_in_pkts * (8+16+4));
+	}
+	if (comm_cnts->if_out_octets > uncntl_cnts->if_out_octets) {
+		uncntl_cnts->if_out_octets = (comm_cnts->if_out_octets -
+					      uncntl_cnts->if_out_octets);
+	} else {
+		uncntl_cnts->if_out_octets = comm_cnts->if_out_octets;
+	}
+
+	macsec_read_reg(ctx, (u16)(0x22f), LINE, &value);
+	uncntl_cnts->if_out_ucast_pkts = (u64) value;
+	macsec_read_reg(ctx, (u16)(0x230), LINE, &value);
+	uncntl_cnts->if_out_multicast_pkts = (u64) value;
+	macsec_read_reg(ctx, (u16)(0x231), LINE, &value);
+	uncntl_cnts->if_out_broadcast_pkts = (u64) value;
+	uncntl_cnts->if_out_errors = secy_cnts->out_pkts_too_long;
+
+	macsec_store_counters();
+
+	printf("\nUncontrolled Port Counters:\n");
+	printf("In Octets\t\t: %llu\n", uncntl_cnts->if_in_octets);
+	printf("In Ucast Packets\t: %llu\n", uncntl_cnts->if_in_ucast_pkts);
+	printf("In Mcast Packets\t: %llu\n", uncntl_cnts->if_in_multicast_pkts);
+	printf("In Bcast Packets\t: %llu\n", uncntl_cnts->if_in_broadcast_pkts);
+	printf("In Discards\t\t: %llu\n", uncntl_cnts->if_in_discards);
+	printf("In Errors\t\t: %llu\n", uncntl_cnts->if_in_errors);
+	printf("Out Octets\t\t: %llu\n", uncntl_cnts->if_out_octets);
+	printf("Out Errors\t\t: %llu\n", uncntl_cnts->if_out_errors);
+	printf("Out Ucast Packets\t: %llu\n", uncntl_cnts->if_out_ucast_pkts);
+	printf("Out Mcast Packets\t: %llu\n", uncntl_cnts->if_out_multicast_pkts);
+	printf("Out Bcast Packets\t: %llu\n", uncntl_cnts->if_out_broadcast_pkts);
 
 	return 0;
 }
